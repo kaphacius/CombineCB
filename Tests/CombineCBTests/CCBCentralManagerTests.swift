@@ -12,6 +12,7 @@ final class CCBCentralManagerTests: XCTestCase {
 
     override func tearDown() {
         cancellables.removeAll()
+        CBMCentralManagerMock.tearDownSimulation()
     }
 
     func testStateChange() {
@@ -24,7 +25,9 @@ final class CCBCentralManagerTests: XCTestCase {
         let exUnknown = expectation(description: "Expected unknown state")
 
         sut.subscribeToStateChanges()
-            .sink(receiveValue: { state in
+            .sink(
+                receiveCompletion: { _ in },
+                receiveValue: { state in
                 XCTAssert(state == expectedState, "Manager state is incorrect")
                 switch state {
                 case .poweredOn: exOn.fulfill()
@@ -46,12 +49,8 @@ final class CCBCentralManagerTests: XCTestCase {
     }
 
     func testDiscovery() {
-        CBMCentralManagerMock.simulateInitialState(.poweredOff)
         let id = UUID()
-        let p: CBMPeripheralSpec = CBMPeripheralSpec
-            .simulatePeripheral(identifier: id, proximity: .near)
-            .advertising(advertisementData: [CBAdvertisementDataIsConnectable: true])
-            .build()
+        let p: CBMPeripheralSpec = CCBCentralManagerTests.mockPeripheral(withId: id)
         CBMCentralManagerMock.simulatePeripherals([p])
         let mockManager = CBCentralManagerFactory.instance(forceMock: true)
         let sut = CCBCentralManager(manager: mockManager)
@@ -63,18 +62,110 @@ final class CCBCentralManagerTests: XCTestCase {
             .filter({ $0 == .poweredOn })
             .flatMap({ _ in
                 sut.scanForPeripherals(withServices: nil, options: nil)
-            }).sink(receiveValue: { p in
+            }).sink(
+                receiveCompletion: { _ in },
+                receiveValue: { p in
                 XCTAssert(p.peripheral.identifier == id, "Discovered peripheral id is incorrect")
                 XCTAssert(p.rssi.doubleValue < -25.0, "Discovered peripheral proximity is incorrect")
 
                 discovered.fulfill()
             }).store(in: &cancellables)
 
-        waitForExpectations(timeout: 1.0, handler: nil)
+        waitForExpectations(timeout: 1.0)
+    }
+
+    func testPeripheralConnection() {
+        let pD = MockPeripheralDelegate()
+        let p = CCBCentralManagerTests.mockPeripheral(delegate: pD)
+        CBMCentralManagerMock.simulatePeripherals([p])
+        let mockManager = CBCentralManagerFactory.instance(forceMock: true)
+        let sut = CCBCentralManager(manager: mockManager)
+        let ex = expectation(description: "Connected to peripheral")
+        CBMCentralManagerMock.simulatePowerOn()
+        sut.subscribeToStateChanges()
+            .filter({ $0 == .poweredOn })
+            .flatMap({ _ -> CCBPublisher<PeripheralDiscovered> in
+                sut.scanForPeripherals(withServices: nil, options: nil)
+            }).flatMap({ (p: PeripheralDiscovered) -> CCBPublisher<CBPeripheral> in
+                sut.connect(p.peripheral, options: nil)
+            }).sink(
+                receiveCompletion: { _  in },
+                receiveValue: { peripheral in
+                    XCTAssert(
+                        peripheral.identifier == p.identifier,
+                        "Conected peripheral id is incorrect"
+                    )
+                    ex.fulfill()
+                }).store(in: &cancellables)
+
+        waitForExpectations(timeout: 10.0)
+    }
+
+    func testPeripheralConnectionFail() {
+        let pD = MockPeripheralDelegate(shouldConnect: false)
+        let p = CCBCentralManagerTests.mockPeripheral(delegate: pD)
+        CBMCentralManagerMock.simulatePeripherals([p])
+        let mockManager = CBCentralManagerFactory.instance(forceMock: true)
+        let sut = CCBCentralManager(manager: mockManager)
+        let ex = expectation(description: "Connected to peripheral")
+        CBMCentralManagerMock.simulatePowerOn()
+        sut.subscribeToStateChanges()
+            .filter({ $0 == .poweredOn })
+            .flatMap({ _ -> CCBPublisher<PeripheralDiscovered> in
+                sut.scanForPeripherals(withServices: nil, options: nil)
+            }).flatMap({ (p: PeripheralDiscovered) -> CCBPublisher<CBPeripheral> in
+                sut.connect(p.peripheral, options: nil)
+            }).sink(
+                receiveCompletion: { completion in
+                    switch completion {
+                    case .failure(let ccbError):
+                        if case .peripheralConnectionError(let error) = ccbError,
+                           let nsError = error as NSError? {
+                            XCTAssert(nsError.domain == "CCBTests")
+                            XCTAssert(nsError.code == 555)
+                            ex.fulfill()
+                        }
+                    default: break
+                    }
+                },
+                receiveValue: { _ in }
+            ).store(in: &cancellables)
+
+        waitForExpectations(timeout: 10.0)
+    }
+
+    static func mockPeripheral(
+        withId id: UUID = UUID(),
+        proximity: CBMProximity = .near,
+        delegate: CBMPeripheralSpecDelegate? = nil
+    ) -> CBMPeripheralSpec {
+        CBMPeripheralSpec
+            .simulatePeripheral(identifier: id, proximity: proximity)
+            .advertising(advertisementData: [CBAdvertisementDataIsConnectable: true])
+            .connectable(name: "MockPeripheral", services: [], delegate: delegate)
+            .build()
     }
 
     static var allTests = [
         ("testDiscovery", testDiscovery),
         ("testStateChange", testStateChange),
     ]
+}
+
+class MockPeripheralDelegate: CBMPeripheralSpecDelegate {
+    internal init(shouldConnect: Bool = true) {
+        self.shouldConnect = shouldConnect
+    }
+
+    let shouldConnect: Bool
+
+    func peripheralDidReceiveConnectionRequest(
+        _ peripheral: CBMPeripheralSpec
+    ) -> Result<Void, Error> {
+        if shouldConnect {
+            return .success(())
+        } else {
+            return .failure(NSError(domain: "CCBTests", code: 555, userInfo: nil))
+        }
+    }
 }

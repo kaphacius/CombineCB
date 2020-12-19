@@ -1,5 +1,10 @@
 import Foundation
 import Combine
 
-typealias CCBStream<T> = PassthroughSubject<T, Never>
-typealias CCBPublisher<T> = AnyPublisher<T, Never>
+enum CCBError: Error {
+    case peripheralConnectionError(Error?)
+}
+
+typealias CCBStream<T> = PassthroughSubject<T, CCBError>
+typealias CCBPublisher<T> = AnyPublisher<T, CCBError>
+typealias CBOptions = [String: Any]

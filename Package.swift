@@ -23,7 +23,6 @@ let package = Package(
         .testTarget(
             name: "CombineCBTests",
             dependencies: ["CombineCB", "CoreBluetoothMock"],
-//            path: "./Tests/CombineCBTests",
             swiftSettings: [.define("TESTS")]
             ),
     ]

@@ -22,14 +22,19 @@ typealias PeripheralDiscovered = (
 
 class CCBCentralManager: NSObject {
     private let manager: CBCentralManager
-    private let stateStream = CurrentValueSubject<CBManagerState, Never>(.unknown)
+    private let stateStream = CurrentValueSubject<CBManagerState, CCBError>(.unknown)
     private let discoverStream = CCBStream<PeripheralDiscovered>()
+    private let connectStream = CCBStream<CBPeripheral>()
 
     internal init(manager: CBCentralManager) {
         self.manager = manager
         super.init()
 
         manager.delegate = self
+    }
+
+    internal func subscribeToStateChanges() -> CCBPublisher<CBManagerState> {
+        stateStream.eraseToAnyPublisher()
     }
 
     internal func scanForPeripherals(
@@ -40,8 +45,11 @@ class CCBCentralManager: NSObject {
         return discoverStream.eraseToAnyPublisher()
     }
 
-    internal func subscribeToStateChanges() -> CCBPublisher<CBManagerState> {
-        stateStream.eraseToAnyPublisher()
+    internal func connect(
+        _ peripheral: CBPeripheral,
+        options: CBOptions?) -> CCBPublisher<CBPeripheral> {
+        manager.connect(peripheral, options: options)
+        return connectStream.eraseToAnyPublisher()
     }
 }
 
@@ -58,5 +66,20 @@ extension CCBCentralManager: CBCentralManagerDelegate {
         advertisementData: [String : Any],
         rssi RSSI: NSNumber) {
         discoverStream.send((peripheral, advertisementData, RSSI))
+    }
+
+    func centralManager(
+        _ central: CBCentralManager,
+        didConnect peripheral: CBPeripheral
+    ) {
+        connectStream.send(peripheral)
+    }
+
+    func centralManager(
+        _ central: CBCentralManager,
+        didFailToConnect peripheral: CBPeripheral,
+        error: Error?
+    ) {
+        connectStream.send(completion: .failure(.peripheralConnectionError(error)))
     }
 }
