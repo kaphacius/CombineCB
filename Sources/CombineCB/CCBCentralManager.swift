@@ -1,10 +1,3 @@
-//
-//  CCBCentralManager.swift
-//  
-//
-//  Created by Yurii Zadoianchuk on 19/12/2020.
-//
-
 #if TEST
     import CoreBluetoothMock
 #else
@@ -15,7 +8,7 @@ import Foundation
 import Combine
 
 typealias PeripheralDiscovered = (
-    peripheral: CBPeripheral,
+    peripheral: CCBPeripheral,
     advertisementData: [String: Any],
     rssi: NSNumber
 )
@@ -24,7 +17,7 @@ class CCBCentralManager: NSObject {
     private let manager: CBCentralManager
     private let stateStream = CurrentValueSubject<CBManagerState, CCBError>(.unknown)
     private let discoverStream = CCBStream<PeripheralDiscovered>()
-    private let connectStream = CCBStream<CBPeripheral>()
+    private let connectStream = CCBStream<CCBPeripheral>()
 
     internal init(manager: CBCentralManager) {
         self.manager = manager
@@ -38,17 +31,17 @@ class CCBCentralManager: NSObject {
     }
 
     internal func scanForPeripherals(
-        withServices services: [CBUUID]?,
-        options: [String: Any]?
+        withServices services: [CBUUID]? = nil,
+        options: [String: Any]? = nil
     ) -> CCBPublisher<PeripheralDiscovered> {
         manager.scanForPeripherals(withServices: services, options: options)
         return discoverStream.eraseToAnyPublisher()
     }
 
     internal func connect(
-        _ peripheral: CBPeripheral,
-        options: CBOptions?) -> CCBPublisher<CBPeripheral> {
-        manager.connect(peripheral, options: options)
+        _ peripheral: CCBPeripheral,
+        options: CBOptions? = nil) -> CCBPublisher<CCBPeripheral> {
+        manager.connect(peripheral.p, options: options)
         return connectStream.eraseToAnyPublisher()
     }
 }
@@ -65,14 +58,14 @@ extension CCBCentralManager: CBCentralManagerDelegate {
         didDiscover peripheral: CBPeripheral,
         advertisementData: [String : Any],
         rssi RSSI: NSNumber) {
-        discoverStream.send((peripheral, advertisementData, RSSI))
+        discoverStream.send((CCBPeripheral(peripheral: peripheral), advertisementData, RSSI))
     }
 
     func centralManager(
         _ central: CBCentralManager,
         didConnect peripheral: CBPeripheral
     ) {
-        connectStream.send(peripheral)
+        connectStream.send(CCBPeripheral(peripheral: peripheral))
     }
 
     func centralManager(

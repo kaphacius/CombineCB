@@ -3,18 +3,7 @@ import Combine
 @testable import CombineCB
 @testable import CoreBluetoothMock
 
-final class CCBCentralManagerTests: XCTestCase {
-    var cancellables: Set<AnyCancellable> = []
-
-    override func setUp() {
-        cancellables = []
-    }
-
-    override func tearDown() {
-        cancellables.removeAll()
-        CBMCentralManagerMock.tearDownSimulation()
-    }
-
+final class CCBCentralManagerTests: CCBTestCase {
     func testStateChange() {
         let mockManager = CBCentralManagerFactory.instance(forceMock: true)
         let sut = CCBCentralManager(manager: mockManager)
@@ -45,7 +34,7 @@ final class CCBCentralManagerTests: XCTestCase {
 
         expectedState = .poweredOff
         CBMCentralManagerMock.simulatePowerOff()
-        wait(for: [exOff], timeout: 1.0)
+        wait(for: [exOff], timeout: 3.0)
     }
 
     func testDiscovery() {
@@ -65,13 +54,13 @@ final class CCBCentralManagerTests: XCTestCase {
             }).sink(
                 receiveCompletion: { _ in },
                 receiveValue: { p in
-                XCTAssert(p.peripheral.identifier == id, "Discovered peripheral id is incorrect")
+                    XCTAssert(p.peripheral.p.identifier == id, "Discovered peripheral id is incorrect")
                 XCTAssert(p.rssi.doubleValue < -25.0, "Discovered peripheral proximity is incorrect")
 
                 discovered.fulfill()
             }).store(in: &cancellables)
 
-        waitForExpectations(timeout: 1.0)
+        waitForExpectations(timeout: 3.0)
     }
 
     func testPeripheralConnection() {
@@ -86,13 +75,13 @@ final class CCBCentralManagerTests: XCTestCase {
             .filter({ $0 == .poweredOn })
             .flatMap({ _ -> CCBPublisher<PeripheralDiscovered> in
                 sut.scanForPeripherals(withServices: nil, options: nil)
-            }).flatMap({ (p: PeripheralDiscovered) -> CCBPublisher<CBPeripheral> in
+            }).flatMap({ (p: PeripheralDiscovered) -> CCBPublisher<CCBPeripheral> in
                 sut.connect(p.peripheral, options: nil)
             }).sink(
                 receiveCompletion: { _  in },
                 receiveValue: { peripheral in
                     XCTAssert(
-                        peripheral.identifier == p.identifier,
+                        peripheral.p.identifier == p.identifier,
                         "Conected peripheral id is incorrect"
                     )
                     ex.fulfill()
@@ -113,7 +102,7 @@ final class CCBCentralManagerTests: XCTestCase {
             .filter({ $0 == .poweredOn })
             .flatMap({ _ -> CCBPublisher<PeripheralDiscovered> in
                 sut.scanForPeripherals(withServices: nil, options: nil)
-            }).flatMap({ (p: PeripheralDiscovered) -> CCBPublisher<CBPeripheral> in
+            }).flatMap({ (p: PeripheralDiscovered) -> CCBPublisher<CCBPeripheral> in
                 sut.connect(p.peripheral, options: nil)
             }).sink(
                 receiveCompletion: { completion in
@@ -134,38 +123,8 @@ final class CCBCentralManagerTests: XCTestCase {
         waitForExpectations(timeout: 10.0)
     }
 
-    static func mockPeripheral(
-        withId id: UUID = UUID(),
-        proximity: CBMProximity = .near,
-        delegate: CBMPeripheralSpecDelegate? = nil
-    ) -> CBMPeripheralSpec {
-        CBMPeripheralSpec
-            .simulatePeripheral(identifier: id, proximity: proximity)
-            .advertising(advertisementData: [CBAdvertisementDataIsConnectable: true])
-            .connectable(name: "MockPeripheral", services: [], delegate: delegate)
-            .build()
-    }
-
     static var allTests = [
         ("testDiscovery", testDiscovery),
         ("testStateChange", testStateChange),
     ]
-}
-
-class MockPeripheralDelegate: CBMPeripheralSpecDelegate {
-    internal init(shouldConnect: Bool = true) {
-        self.shouldConnect = shouldConnect
-    }
-
-    let shouldConnect: Bool
-
-    func peripheralDidReceiveConnectionRequest(
-        _ peripheral: CBMPeripheralSpec
-    ) -> Result<Void, Error> {
-        if shouldConnect {
-            return .success(())
-        } else {
-            return .failure(NSError(domain: "CCBTests", code: 555, userInfo: nil))
-        }
-    }
 }

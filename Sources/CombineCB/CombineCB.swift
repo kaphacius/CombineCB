@@ -3,6 +3,8 @@ import Combine
 
 enum CCBError: Error {
     case peripheralConnectionError(Error?)
+    case serviceDiscoveryError(Error?)
+    case includedServiceDiscoveryError(Error?)
 }
 
 typealias CCBStream<T> = PassthroughSubject<T, CCBError>

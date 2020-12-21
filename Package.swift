@@ -13,8 +13,8 @@ let package = Package(
     ],
     dependencies: [
         .package(name: "CoreBluetoothMock",
-                 url: "https://github.com/NordicSemiconductor/IOS-CoreBluetooth-Mock.git",
-                 .upToNextMajor(from: Version(0, 12, 0)))
+                 url: "https://github.com/kaphacius/IOS-CoreBluetooth-Mock.git",
+                 .revision("9213f23f3346f3cfa8d7aaffc8cdc44daf44dd42"))
     ],
     targets: [
         .target(
