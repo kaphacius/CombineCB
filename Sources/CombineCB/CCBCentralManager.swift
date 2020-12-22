@@ -17,7 +17,7 @@ class CCBCentralManager: NSObject {
     private let manager: CBCentralManager
     private let stateStream = CurrentValueSubject<CBManagerState, CCBError>(.unknown)
     private let discoverStream = CCBStream<PeripheralDiscovered>()
-    private var connectStreams: Dictionary<UUID, CCBConnectStream> = [:]
+    private var connectStreams: Dictionary<UUID, CCBPeripheralStream> = [:]
 
     internal init(manager: CBCentralManager) {
         self.manager = manager
@@ -40,7 +40,7 @@ class CCBCentralManager: NSObject {
 
     internal func connect(
         _ peripheral: CCBPeripheral,
-        options: CBOptions? = nil) -> CCBPublisher<CCBPeripheral> {
+        options: CBOptions? = nil) -> CCBPeripheralPublisher {
         let stream = connectStream(for: peripheral.id)
         manager.connect(peripheral.p, options: options)
         return stream.eraseToAnyPublisher()
@@ -48,7 +48,7 @@ class CCBCentralManager: NSObject {
 
     internal func cancelPeripheralConnection(
         _ peripheral: CBPeripheral
-    ) -> CCBPublisher<CCBPeripheral> {
+    ) -> CCBPeripheralPublisher {
         let stream = connectStream(for: peripheral.identifier)
         manager.cancelPeripheralConnection(peripheral)
         return stream.eraseToAnyPublisher()
@@ -58,11 +58,11 @@ class CCBCentralManager: NSObject {
         connectStreams.removeValue(forKey: id)
     }
 
-    private func connectStream(for id: UUID) -> CCBConnectStream {
+    private func connectStream(for id: UUID) -> CCBPeripheralStream {
         if let s = connectStreams[id] {
             return s
         } else {
-            let stream = CCBConnectStream()
+            let stream = CCBPeripheralStream()
             connectStreams[id] = stream
             return stream
         }

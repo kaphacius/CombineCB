@@ -16,9 +16,11 @@ class CCBPeripheral: NSObject {
     private let peripheral: CBPeripheral
     private let serviceDiscoverStream = CCBStream<CCBPeripheral>()
     private let includedServiceDiscoverStream = CCBStream<IncludedServiceDiscovered>()
+    private var characteristicsDiscoverStreams: Dictionary<CBUUID, CCBServiceStream> = [:]
 
     internal var p: CBPeripheral { peripheral }
     internal var id: UUID { peripheral.identifier }
+    internal var services: [CBService] { peripheral.services ?? [] }
 
     internal init(peripheral: CBPeripheral) {
         self.peripheral = peripheral
@@ -29,7 +31,7 @@ class CCBPeripheral: NSObject {
 
     internal func discoverServices(
         _ serviceUUIDs: [CBUUID]? = nil
-    ) -> CCBPublisher<CCBPeripheral> {
+    ) -> CCBPeripheralPublisher {
         peripheral.discoverServices(serviceUUIDs)
         return serviceDiscoverStream.eraseToAnyPublisher()
     }
@@ -40,6 +42,25 @@ class CCBPeripheral: NSObject {
     ) -> CCBPublisher<IncludedServiceDiscovered> {
         peripheral.discoverIncludedServices(serviceUUIDs, for: service)
         return includedServiceDiscoverStream.eraseToAnyPublisher()
+    }
+
+    internal func discoverCharacteristics(
+        _ characteristicUUIDs: [CBUUID]?,
+        for service: CBService
+    ) -> CCBPublisher<CBService> {
+        let stream = characteristicsDiscoverStream(for: service.uuid)
+        peripheral.discoverCharacteristics(characteristicUUIDs, for: service)
+        return stream.eraseToAnyPublisher()
+    }
+
+    private func characteristicsDiscoverStream(for id: CBUUID) -> CCBServiceStream {
+        if let s = characteristicsDiscoverStreams[id] {
+            return s
+        } else {
+            let stream = CCBServiceStream()
+            characteristicsDiscoverStreams[id] = stream
+            return stream
+        }
     }
 }
 
@@ -70,4 +91,18 @@ extension CCBPeripheral: CBPeripheralDelegate {
                 .send((self, service))
         }
     }
+
+    func peripheral(
+        _ peripheral: CBPeripheral,
+        didDiscoverCharacteristicsFor service: CBService,
+        error: Error?
+    ) {
+        let stream = characteristicsDiscoverStream(for: service.uuid)
+
+        if let e = error {
+            stream.send(completion: .failure(.characteristicsDiscoveryError(e)))
+        } else {
+            stream.send(service)
+        }
+    }   
 }

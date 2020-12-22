@@ -38,11 +38,26 @@ class CCBTestCase: XCTestCase {
 
     static func mockService(
         with uuid: CBUUID,
-        includedServices incl: [CBMServiceMock] = []
+        includedServices incl: [CBMServiceMock] = [],
+        characteristics: [CBMCharacteristicMock] = []
     ) -> CBMServiceMock {
-        let mock = CBMServiceMock(type: uuid, primary: true)
+        let mock = CBMServiceMock(
+            type: uuid,
+            primary: true
+        )
+        mock.characteristics = characteristics
         mock.includedServices = incl
         return mock
+    }
+
+    static func mockCharacteristic(
+        with uuid: CBUUID =  CBUUID(nsuuid: UUID()),
+        properties: CBMCharacteristicProperties = [.read, .write]
+    ) -> CBMCharacteristicMock {
+        CBMCharacteristicMock(
+            type: uuid,
+            properties: properties
+        )
     }
 }
 

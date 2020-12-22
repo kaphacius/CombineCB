@@ -21,10 +21,10 @@ final class CCBPeripheralTests: CCBTestCase {
             .filter({ $0 == .poweredOn })
             .flatMap({ _ -> CCBPublisher<PeripheralDiscovered> in
                 sut.scanForPeripherals(withServices: nil, options: nil)
-            }).flatMap({ (p: PeripheralDiscovered) -> CCBPublisher<CCBPeripheral> in
+            }).flatMap({ (p: PeripheralDiscovered) -> CCBPeripheralPublisher in
                 sut.connect(p.peripheral)
             })
-            .flatMap({ (p: CCBPeripheral) -> CCBPublisher<CCBPeripheral> in
+            .flatMap({ (p: CCBPeripheral) -> CCBPeripheralPublisher in
                 p.discoverServices()
             }).sink(
                 receiveCompletion: { _ in },
@@ -60,10 +60,10 @@ final class CCBPeripheralTests: CCBTestCase {
             .filter({ $0 == .poweredOn })
             .flatMap({ _ -> CCBPublisher<PeripheralDiscovered> in
                 sut.scanForPeripherals(withServices: nil, options: nil)
-            }).flatMap({ (p: PeripheralDiscovered) -> CCBPublisher<CCBPeripheral> in
+            }).flatMap({ (p: PeripheralDiscovered) -> CCBPeripheralPublisher in
                 sut.connect(p.peripheral)
             })
-            .flatMap({ (p: CCBPeripheral) -> CCBPublisher<CCBPeripheral> in
+            .flatMap({ (p: CCBPeripheral) -> CCBPeripheralPublisher in
                 p.discoverServices([uuids.last!])
             }).sink(
                 receiveCompletion: { _ in },
@@ -99,10 +99,10 @@ final class CCBPeripheralTests: CCBTestCase {
             .filter({ $0 == .poweredOn })
             .flatMap({ _ -> CCBPublisher<PeripheralDiscovered> in
                 sut.scanForPeripherals(withServices: nil, options: nil)
-            }).flatMap({ (p: PeripheralDiscovered) -> CCBPublisher<CCBPeripheral> in
+            }).flatMap({ (p: PeripheralDiscovered) -> CCBPeripheralPublisher in
                 sut.connect(p.peripheral)
             })
-            .flatMap({ (p: CCBPeripheral) -> CCBPublisher<CCBPeripheral> in
+            .flatMap({ (p: CCBPeripheral) -> CCBPeripheralPublisher in
                 p.discoverServices()
             }).sink(
                 receiveCompletion: { completion in
@@ -144,10 +144,10 @@ final class CCBPeripheralTests: CCBTestCase {
             .filter({ $0 == .poweredOn })
             .flatMap({ _ -> CCBPublisher<PeripheralDiscovered> in
                 sut.scanForPeripherals(withServices: nil, options: nil)
-            }).flatMap({ (p: PeripheralDiscovered) -> CCBPublisher<CCBPeripheral> in
+            }).flatMap({ (p: PeripheralDiscovered) -> CCBPeripheralPublisher in
                 sut.connect(p.peripheral)
             })
-            .flatMap({ (p: CCBPeripheral) -> CCBPublisher<CCBPeripheral> in
+            .flatMap({ (p: CCBPeripheral) -> CCBPeripheralPublisher in
                 p.discoverServices()
             })
             .flatMap({ (p: CCBPeripheral) -> CCBPublisher<IncludedServiceDiscovered> in
@@ -194,10 +194,10 @@ final class CCBPeripheralTests: CCBTestCase {
             .filter({ $0 == .poweredOn })
             .flatMap({ _ -> CCBPublisher<PeripheralDiscovered> in
                 sut.scanForPeripherals(withServices: nil, options: nil)
-            }).flatMap({ (p: PeripheralDiscovered) -> CCBPublisher<CCBPeripheral> in
+            }).flatMap({ (p: PeripheralDiscovered) -> CCBPeripheralPublisher in
                 sut.connect(p.peripheral)
             })
-            .flatMap({ (p: CCBPeripheral) -> CCBPublisher<CCBPeripheral> in
+            .flatMap({ (p: CCBPeripheral) -> CCBPeripheralPublisher in
                 p.discoverServices()
             })
             .flatMap({ (p: CCBPeripheral) -> CCBPublisher<IncludedServiceDiscovered> in
@@ -219,6 +219,53 @@ final class CCBPeripheralTests: CCBTestCase {
                     }
                 },
                 receiveValue: { _ in }
+            ).store(in: &cancellables)
+
+        waitForExpectations(timeout: 60.0)
+    }
+
+    func testDiscoverCharacteristics() {
+        let pD = MockPeripheralDelegate(shouldDiscoverIncludedServices: false)
+        let uuids: Array<CBUUID> = [UUID(), UUID(), UUID()].map(CBUUID.init)
+        let mockService = CCBTestCase.mockService(
+            with: CBUUID(nsuuid: UUID()),
+            characteristics: [
+                CCBTestCase.mockCharacteristic(),
+                CCBTestCase.mockCharacteristic(),
+                CCBTestCase.mockCharacteristic()
+            ]
+        )
+        let mp = CCBCentralManagerTests.mockPeripheral(
+            delegate: pD,
+            services: [mockService]
+        )
+        CBMCentralManagerMock.simulatePeripherals([mp])
+        let mockManager = CBCentralManagerFactory.instance(forceMock: true)
+        let sut = CCBCentralManager(manager: mockManager)
+        let ex = expectation(description: "Discovered 3 services")
+        CBMCentralManagerMock.simulatePowerOn()
+
+        sut.subscribeToStateChanges()
+            .filter({ $0 == .poweredOn })
+            .flatMap({ _ -> CCBPublisher<PeripheralDiscovered> in
+                sut.scanForPeripherals(withServices: nil, options: nil)
+            }).flatMap({ (p: PeripheralDiscovered) -> CCBPeripheralPublisher in
+                sut.connect(p.peripheral)
+            })
+            .flatMap({ (p: CCBPeripheral) -> CCBPeripheralPublisher in
+                p.discoverServices()
+            })
+            .flatMap({ (p: CCBPeripheral) -> CCBServicePublisher in
+                p.discoverCharacteristics(nil, for: p.services.first!)
+            }).sink(
+                receiveCompletion: { _ in },
+                receiveValue: { service in
+                    XCTAssert(service.identifier == mockService.identifier, "Service id does not match")
+                    XCTAssert(service.characteristics?.count == 3, "Discovered wrong number of characteristics")
+                    XCTAssert(service.characteristics!.allSatisfy({ $0.properties == [.read, .write] }), "Discovered wrong characteristics properties")
+                    XCTAssert(Set(service.characteristics!.map(\.identifier)) == Set(mockService.characteristics!.map(\.identifier)), "Discovered  characteristics have wrong identifiers")
+                    ex.fulfill()
+                }
             ).store(in: &cancellables)
 
         waitForExpectations(timeout: 60.0)

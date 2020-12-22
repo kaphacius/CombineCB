@@ -5,11 +5,14 @@ enum CCBError: Error {
     case peripheralConnectionError(Error?)
     case peripheralDisconnectError(Error?)
     case serviceDiscoveryError(Error?)
-    case includedServiceDiscoveryError(Error?)
+    case includedServiceDiscoveryError(Error)
+    case characteristicsDiscoveryError(Error)
 }
 
 typealias CCBStream<T> = PassthroughSubject<T, CCBError>
-typealias CCBConnectStream = CCBStream<CCBPeripheral>
+typealias CCBPeripheralStream = CCBStream<CCBPeripheral>
+typealias CCBServiceStream = CCBStream<CBService>
 typealias CCBPublisher<T> = AnyPublisher<T, CCBError>
-typealias CCBConnectPublisher = CCBPublisher<CCBPeripheral>
+typealias CCBPeripheralPublisher = CCBPublisher<CCBPeripheral>
+typealias CCBServicePublisher = CCBPublisher<CBService>
 typealias CBOptions = [String: Any]

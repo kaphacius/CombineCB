@@ -60,7 +60,7 @@ final class CCBCentralManagerTests: CCBTestCase {
                 discovered.fulfill()
             }).store(in: &cancellables)
 
-        waitForExpectations(timeout: 3.0)
+        waitForExpectations(timeout: 10.0)
     }
 
     func testPeripheralConnection() {
@@ -75,7 +75,7 @@ final class CCBCentralManagerTests: CCBTestCase {
             .filter({ $0 == .poweredOn })
             .flatMap({ _ -> CCBPublisher<PeripheralDiscovered> in
                 sut.scanForPeripherals(withServices: nil, options: nil)
-            }).flatMap({ (p: PeripheralDiscovered) -> CCBPublisher<CCBPeripheral> in
+            }).flatMap({ (p: PeripheralDiscovered) -> CCBPeripheralPublisher in
                 sut.connect(p.peripheral, options: nil)
             }).sink(
                 receiveCompletion: { _  in },
@@ -149,7 +149,7 @@ final class CCBCentralManagerTests: CCBTestCase {
             .filter({ $0 == .poweredOn })
             .flatMap({ _ -> CCBPublisher<PeripheralDiscovered> in
                 sut.scanForPeripherals(withServices: nil, options: nil)
-            }).flatMap({ (p: PeripheralDiscovered) -> CCBPublisher<CCBPeripheral> in
+            }).flatMap({ (p: PeripheralDiscovered) -> CCBPeripheralPublisher in
                 sut.connect(p.peripheral, options: nil)
             }).sink(
                 receiveCompletion: { completion in
@@ -187,7 +187,7 @@ final class CCBCentralManagerTests: CCBTestCase {
             .filter({ $0 == .poweredOn })
             .flatMap({ _ -> CCBPublisher<PeripheralDiscovered> in
                 sut.scanForPeripherals(withServices: nil, options: nil)
-            }).flatMap({ (p: PeripheralDiscovered) -> CCBPublisher<CCBPeripheral> in
+            }).flatMap({ (p: PeripheralDiscovered) -> CCBPeripheralPublisher in
                 connected = true
                 return sut.connect(p.peripheral, options: nil)
             }).sink(
@@ -226,7 +226,7 @@ final class CCBCentralManagerTests: CCBTestCase {
             .filter({ $0 == .poweredOn })
             .flatMap({ _ -> CCBPublisher<PeripheralDiscovered> in
                 sut.scanForPeripherals(withServices: nil, options: nil)
-            }).flatMap({ (p: PeripheralDiscovered) -> CCBPublisher<CCBPeripheral> in
+            }).flatMap({ (p: PeripheralDiscovered) -> CCBPeripheralPublisher in
                 connected = true
                 return sut.connect(p.peripheral, options: nil)
             }).sink(
