@@ -5,8 +5,8 @@
         "package": "CoreBluetoothMock",
         "repositoryURL": "https://github.com/kaphacius/IOS-CoreBluetooth-Mock.git",
         "state": {
-          "branch": null,
-          "revision": "9213f23f3346f3cfa8d7aaffc8cdc44daf44dd42",
+          "branch": "master",
+          "revision": "2d7df5d3c3aa485d2c61fcb9cd79fbc8888ce61d",
           "version": null
         }
       }

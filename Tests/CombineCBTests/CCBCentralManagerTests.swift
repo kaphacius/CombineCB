@@ -123,6 +123,92 @@ final class CCBCentralManagerTests: CCBTestCase {
         waitForExpectations(timeout: 10.0)
     }
 
+    func testPeripheralDisconnect() {
+        // TODO: Fix when I know how
+
+        return
+
+        let pD = MockPeripheralDelegate()
+        let p = CCBCentralManagerTests.mockPeripheral(delegate: pD)
+        CBMCentralManagerMock.simulatePeripherals([p])
+        let mockManager = CBCentralManagerFactory.instance(forceMock: true)
+        let sut = CCBCentralManager(manager: mockManager)
+        let ex = expectation(description: "Disconnected from peripheral")
+        var connected: Bool = false
+        CBMCentralManagerMock.simulatePowerOn()
+        sut.subscribeToStateChanges()
+            .filter({ $0 == .poweredOn })
+            .flatMap({ _ -> CCBPublisher<PeripheralDiscovered> in
+                sut.scanForPeripherals(withServices: nil, options: nil)
+            }).flatMap({ (p: PeripheralDiscovered) -> CCBPublisher<CCBPeripheral> in
+                connected = true
+                return sut.connect(p.peripheral, options: nil)
+            }).sink(
+                receiveCompletion: { completion in
+                    switch completion {
+                    case .finished:
+                        ex.fulfill()
+                    default:
+                        break
+                    }
+                },
+                receiveValue: { _ in }
+            ).store(in: &cancellables)
+
+        let predicate = NSPredicate { _, _ in connected }
+        wait(
+            for: [expectation(for: predicate, evaluatedWith: nil, handler: nil)],
+            timeout: 10.0
+        )
+
+        CBMCentralManagerMock.peripheral(p, didDisconnectWithError: nil)
+
+        waitForExpectations(timeout: 20.0)
+    }
+
+    func testPeripheralDisconnectWithError() {
+        let pD = MockPeripheralDelegate()
+        let p = CCBCentralManagerTests.mockPeripheral(delegate: pD)
+        CBMCentralManagerMock.simulatePeripherals([p])
+        let mockManager = CBCentralManagerFactory.instance(forceMock: true)
+        let sut = CCBCentralManager(manager: mockManager)
+        let ex = expectation(description: "Disconnected from peripheral")
+        var connected: Bool = false
+        CBMCentralManagerMock.simulatePowerOn()
+        sut.subscribeToStateChanges()
+            .filter({ $0 == .poweredOn })
+            .flatMap({ _ -> CCBPublisher<PeripheralDiscovered> in
+                sut.scanForPeripherals(withServices: nil, options: nil)
+            }).flatMap({ (p: PeripheralDiscovered) -> CCBPublisher<CCBPeripheral> in
+                connected = true
+                return sut.connect(p.peripheral, options: nil)
+            }).sink(
+                receiveCompletion: { completion in
+                    switch completion {
+                    case .failure(let ccbError):
+                        if case .peripheralDisconnectError(let error) = ccbError,
+                           let nsError = error as NSError? {
+                            XCTAssert(nsError.domain == "CCBTests")
+                            XCTAssert(nsError.code == 555)
+                            ex.fulfill()
+                        }
+                    default: break
+                    }
+                },
+                receiveValue: { _ in }
+            ).store(in: &cancellables)
+
+        let predicate = NSPredicate { _, _ in connected }
+        wait(
+            for: [expectation(for: predicate, evaluatedWith: nil, handler: nil)],
+            timeout: 10.0
+        )
+
+        CBMCentralManagerMock.peripheral(p, didDisconnectWithError: CCBTestCase.error)
+
+        waitForExpectations(timeout: 20.0)
+    }
+
     static var allTests = [
         ("testDiscovery", testDiscovery),
         ("testStateChange", testStateChange),

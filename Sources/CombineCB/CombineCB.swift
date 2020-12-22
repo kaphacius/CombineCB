@@ -3,6 +3,7 @@ import Combine
 
 enum CCBError: Error {
     case peripheralConnectionError(Error?)
+    case peripheralDisconnectError(Error?)
     case serviceDiscoveryError(Error?)
     case includedServiceDiscoveryError(Error?)
 }

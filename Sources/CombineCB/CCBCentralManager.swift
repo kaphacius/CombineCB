@@ -17,7 +17,7 @@ class CCBCentralManager: NSObject {
     private let manager: CBCentralManager
     private let stateStream = CurrentValueSubject<CBManagerState, CCBError>(.unknown)
     private let discoverStream = CCBStream<PeripheralDiscovered>()
-    private let connectStream = CCBStream<CCBPeripheral>()
+    private var connectStream = CCBStream<CCBPeripheral>()
 
     internal init(manager: CBCentralManager) {
         self.manager = manager
@@ -43,6 +43,17 @@ class CCBCentralManager: NSObject {
         options: CBOptions? = nil) -> CCBPublisher<CCBPeripheral> {
         manager.connect(peripheral.p, options: options)
         return connectStream.eraseToAnyPublisher()
+    }
+
+    internal func cancelPeripheralConnection(
+        _ peripheral: CBPeripheral
+    ) -> CCBPublisher<CCBPeripheral> {
+        manager.cancelPeripheralConnection(peripheral)
+        return connectStream.eraseToAnyPublisher()
+    }
+
+    private func onPeripheralDisconnect() {
+        connectStream = CCBStream<CCBPeripheral>()
     }
 }
 
@@ -73,6 +84,21 @@ extension CCBCentralManager: CBCentralManagerDelegate {
         didFailToConnect peripheral: CBPeripheral,
         error: Error?
     ) {
-        connectStream.send(completion: .failure(.peripheralConnectionError(error)))
+        connectStream
+            .send(completion: .failure(.peripheralConnectionError(error)))
+    }
+
+    func centralManager(
+        _ central: CBCentralManager,
+        didDisconnectPeripheral peripheral: CBPeripheral,
+        error: Error?
+    ) {
+        if let e = error {
+            connectStream.send(completion: .failure(.peripheralDisconnectError(e)))
+        } else {
+            connectStream.send(completion: .finished)
+        }
+
+        onPeripheralDisconnect()
     }
 }
