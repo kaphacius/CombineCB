@@ -18,6 +18,7 @@ class CCBPeripheral: NSObject {
     private let includedServiceDiscoverStream = CCBStream<IncludedServiceDiscovered>()
 
     internal var p: CBPeripheral { peripheral }
+    internal var id: UUID { peripheral.identifier }
 
     internal init(peripheral: CBPeripheral) {
         self.peripheral = peripheral

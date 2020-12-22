@@ -17,7 +17,7 @@ class CCBCentralManager: NSObject {
     private let manager: CBCentralManager
     private let stateStream = CurrentValueSubject<CBManagerState, CCBError>(.unknown)
     private let discoverStream = CCBStream<PeripheralDiscovered>()
-    private var connectStream = CCBStream<CCBPeripheral>()
+    private var connectStreams: Dictionary<UUID, CCBConnectStream> = [:]
 
     internal init(manager: CBCentralManager) {
         self.manager = manager
@@ -41,19 +41,31 @@ class CCBCentralManager: NSObject {
     internal func connect(
         _ peripheral: CCBPeripheral,
         options: CBOptions? = nil) -> CCBPublisher<CCBPeripheral> {
+        let stream = connectStream(for: peripheral.id)
         manager.connect(peripheral.p, options: options)
-        return connectStream.eraseToAnyPublisher()
+        return stream.eraseToAnyPublisher()
     }
 
     internal func cancelPeripheralConnection(
         _ peripheral: CBPeripheral
     ) -> CCBPublisher<CCBPeripheral> {
+        let stream = connectStream(for: peripheral.identifier)
         manager.cancelPeripheralConnection(peripheral)
-        return connectStream.eraseToAnyPublisher()
+        return stream.eraseToAnyPublisher()
     }
 
-    private func onPeripheralDisconnect() {
-        connectStream = CCBStream<CCBPeripheral>()
+    func onPeripheralDisconnect(with id: UUID) {
+        connectStreams.removeValue(forKey: id)
+    }
+
+    private func connectStream(for id: UUID) -> CCBConnectStream {
+        if let s = connectStreams[id] {
+            return s
+        } else {
+            let stream = CCBConnectStream()
+            connectStreams[id] = stream
+            return stream
+        }
     }
 }
 
@@ -76,7 +88,10 @@ extension CCBCentralManager: CBCentralManagerDelegate {
         _ central: CBCentralManager,
         didConnect peripheral: CBPeripheral
     ) {
-        connectStream.send(CCBPeripheral(peripheral: peripheral))
+        connectStreams[peripheral.identifier]
+            .map {
+                $0.send(CCBPeripheral(peripheral: peripheral))
+            }
     }
 
     func centralManager(
@@ -84,8 +99,11 @@ extension CCBCentralManager: CBCentralManagerDelegate {
         didFailToConnect peripheral: CBPeripheral,
         error: Error?
     ) {
-        connectStream
-            .send(completion: .failure(.peripheralConnectionError(error)))
+        connectStreams[peripheral.identifier]
+            .map {
+                $0.send(completion: .failure(.peripheralConnectionError(error)))
+            }
+        onPeripheralDisconnect(with: peripheral.identifier)
     }
 
     func centralManager(
@@ -93,12 +111,14 @@ extension CCBCentralManager: CBCentralManagerDelegate {
         didDisconnectPeripheral peripheral: CBPeripheral,
         error: Error?
     ) {
+        let stream = connectStream(for: peripheral.identifier)
+
         if let e = error {
-            connectStream.send(completion: .failure(.peripheralDisconnectError(e)))
+            stream.send(completion: .failure(.peripheralDisconnectError(e)))
         } else {
-            connectStream.send(completion: .finished)
+            stream.send(completion: .finished)
         }
 
-        onPeripheralDisconnect()
+        onPeripheralDisconnect(with: peripheral.identifier)
     }
 }
