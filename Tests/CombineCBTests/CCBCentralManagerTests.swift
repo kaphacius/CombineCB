@@ -90,6 +90,53 @@ final class CCBCentralManagerTests: CCBTestCase {
         waitForExpectations(timeout: 10.0)
     }
 
+    func testMultiplePeripheralsConnection() {
+        let pD = MockPeripheralDelegate()
+        CBMCentralManagerMock.simulatePeripherals([
+            CCBCentralManagerTests.mockPeripheral(delegate: pD),
+            CCBCentralManagerTests.mockPeripheral(delegate: pD)
+        ])
+        let mockManager = CBCentralManagerFactory.instance(forceMock: true)
+        let sut = CCBCentralManager(manager: mockManager)
+        let ex = expectation(description: "Connected to peripherals")
+        ex.expectedFulfillmentCount = 2
+        var scannedPeripherals: Array<CCBPeripheral> = []
+        CBMCentralManagerMock.simulatePowerOn()
+        sut.subscribeToStateChanges()
+            .filter({ $0 == .poweredOn })
+            .flatMap({ _ -> CCBPublisher<PeripheralDiscovered> in
+                sut.scanForPeripherals(withServices: nil, options: nil)
+            }).sink(
+                receiveCompletion: { _  in },
+                receiveValue: { (peripheral: PeripheralDiscovered) in
+                    scannedPeripherals.append(peripheral.peripheral)
+                }).store(in: &cancellables)
+
+        let predicate = NSPredicate { _,_ in scannedPeripherals.count == 2 }
+        wait(for: [expectation(for: predicate, evaluatedWith: nil)], timeout: 10.0)
+
+        let disconnectExpectation = expectation(description: "Disconnected from peripherals")
+        disconnectExpectation.expectedFulfillmentCount = 2
+
+        _ = scannedPeripherals
+            .map({ (sp: CCBPeripheral) -> Void in
+                sut.connect(sp)
+                    .sink(receiveCompletion: { _ in
+                        disconnectExpectation.fulfill()
+                    }, receiveValue: { p in
+                        ex.fulfill()
+                    }).store(in: &cancellables)
+            })
+
+        wait(for: [ex], timeout: 10.0)
+
+        _ = scannedPeripherals.map { (p: CCBPeripheral) in
+            sut.cancelPeripheralConnection(p.p)
+        }
+
+        wait(for: [disconnectExpectation], timeout: 10.0)
+    }
+
     func testPeripheralConnectionFail() {
         let pD = MockPeripheralDelegate(shouldConnect: false)
         let p = CCBCentralManagerTests.mockPeripheral(delegate: pD)
