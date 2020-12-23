@@ -52,12 +52,21 @@ class CCBTestCase: XCTestCase {
 
     static func mockCharacteristic(
         with uuid: CBUUID =  CBUUID(nsuuid: UUID()),
-        properties: CBMCharacteristicProperties = [.read, .write]
+        properties: CBMCharacteristicProperties = [.read, .write],
+        descriptors: [CBMDescriptorMock] = []
     ) -> CBMCharacteristicMock {
-        CBMCharacteristicMock(
+        let mock = CBMCharacteristicMock(
             type: uuid,
             properties: properties
         )
+        mock.descriptors = descriptors
+        return mock
+    }
+
+    static func mockDescriptor(
+        with uuid: CBUUID =  CBUUID(nsuuid: UUID())
+    ) -> CBMDescriptorMock {
+        CBMDescriptorMock(type: uuid)
     }
 }
 
@@ -67,11 +76,13 @@ class MockPeripheralDelegate: CBMPeripheralSpecDelegate {
         shouldDiscoverServices: Bool = true,
         shouldDiscoverIncludedServices: Bool = true,
         shouldDiscoverCharacteristics: Bool = true,
+        shouldDiscoverDescriptors: Bool = true,
         services: [CBMServiceMock] = []) {
         self.shouldConnect = shouldConnect
         self.shouldDiscoverServices = shouldDiscoverServices
         self.shouldDiscoverIncludedServices = shouldDiscoverIncludedServices
         self.shouldDiscoverCharacteristics = shouldDiscoverCharacteristics
+        self.shouldDiscoverDescriptors = shouldDiscoverDescriptors
         self.services = services
     }
 
@@ -79,6 +90,7 @@ class MockPeripheralDelegate: CBMPeripheralSpecDelegate {
     let shouldDiscoverServices: Bool
     let shouldDiscoverIncludedServices: Bool
     let shouldDiscoverCharacteristics: Bool
+    let shouldDiscoverDescriptors: Bool
     let services: [CBMServiceMock]
 
     func peripheralDidReceiveConnectionRequest(
@@ -120,6 +132,17 @@ class MockPeripheralDelegate: CBMPeripheralSpecDelegate {
         for service: CBMService
     ) -> Result<Void, Error> {
         if shouldDiscoverCharacteristics {
+            return .success(())
+        } else {
+            return .failure(CCBTestCase.error)
+        }
+    }
+
+    func peripheral(
+        _ peripheral: CBMPeripheralSpec,
+        didReceiveDescriptorsDiscoveryRequestFor characteristic: CBMCharacteristic
+    ) -> Result<Void, Error> {
+        if shouldDiscoverDescriptors {
             return .success(())
         } else {
             return .failure(CCBTestCase.error)

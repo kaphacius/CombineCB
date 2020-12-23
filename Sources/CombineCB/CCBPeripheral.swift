@@ -7,16 +7,12 @@
 import Foundation
 import Combine
 
-typealias IncludedServiceDiscovered = (
-    peripheral: CCBPeripheral,
-    service: CBService
-)
-
 class CCBPeripheral: NSObject {
     private let peripheral: CBPeripheral
     private let serviceDiscoverStream = CCBStream<CCBPeripheral>()
     private let includedServiceDiscoverStream = CCBStream<IncludedServiceDiscovered>()
-    private var characteristicsDiscoverStreams: Dictionary<CBUUID, CCBServiceStream> = [:]
+    private var characteristicsDiscoverStreams: Dictionary<CBUUID, CCBDiscoverCharacteristicsStream> = [:]
+    private var descriptorsDiscoverStreams: Dictionary<CBUUID, CCBDiscoverDescriptorsStream> = [:]
 
     internal var p: CBPeripheral { peripheral }
     internal var id: UUID { peripheral.identifier }
@@ -47,18 +43,40 @@ class CCBPeripheral: NSObject {
     internal func discoverCharacteristics(
         _ characteristicUUIDs: [CBUUID]?,
         for service: CBService
-    ) -> CCBPublisher<CBService> {
+    ) -> CCBPublisher<CharacteristicsDiscovered> {
         let stream = characteristicsDiscoverStream(for: service.uuid)
         peripheral.discoverCharacteristics(characteristicUUIDs, for: service)
         return stream.eraseToAnyPublisher()
     }
 
-    private func characteristicsDiscoverStream(for id: CBUUID) -> CCBServiceStream {
+    internal func discoverDescriptors(
+        for characteristic: CBCharacteristic
+    ) -> CCBDiscoverDescriptorsPublisher {
+        let stream = descriptorsDiscoverStream(for: characteristic.uuid)
+        peripheral.discoverDescriptors(for: characteristic)
+        return stream.eraseToAnyPublisher()
+    }
+
+    private func characteristicsDiscoverStream(
+        for id: CBUUID
+    ) -> CCBDiscoverCharacteristicsStream {
         if let s = characteristicsDiscoverStreams[id] {
             return s
         } else {
-            let stream = CCBServiceStream()
+            let stream = CCBStream<CharacteristicsDiscovered>()
             characteristicsDiscoverStreams[id] = stream
+            return stream
+        }
+    }
+
+    private func descriptorsDiscoverStream(
+        for id: CBUUID
+    ) -> CCBDiscoverDescriptorsStream {
+        if let s = descriptorsDiscoverStreams[id] {
+            return s
+        } else {
+            let stream = CCBDiscoverDescriptorsStream()
+            descriptorsDiscoverStreams[id] = stream
             return stream
         }
     }
@@ -102,7 +120,21 @@ extension CCBPeripheral: CBPeripheralDelegate {
         if let e = error {
             stream.send(completion: .failure(.characteristicsDiscoveryError(e)))
         } else {
-            stream.send(service)
+            stream.send((self, service))
         }
-    }   
+    }
+
+    func peripheral(
+        _ peripheral: CBPeripheral,
+        didDiscoverDescriptorsFor characteristic: CBCharacteristic,
+        error: Error?
+    ) {
+        let stream = descriptorsDiscoverStream(for: characteristic.uuid)
+
+        if let e = error {
+            stream.send(completion: .failure(.descriptiorsDiscoveryError(e)))
+        } else {
+            stream.send((self, characteristic))
+        }
+    }
 }

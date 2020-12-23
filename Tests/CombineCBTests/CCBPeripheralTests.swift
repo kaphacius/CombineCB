@@ -254,11 +254,11 @@ final class CCBPeripheralTests: CCBTestCase {
             .flatMap({ (p: CCBPeripheral) -> CCBPeripheralPublisher in
                 p.discoverServices()
             })
-            .flatMap({ (p: CCBPeripheral) -> CCBServicePublisher in
+            .flatMap({ (p: CCBPeripheral) -> CCBDiscoverCharacteristicsPublisher in
                 p.discoverCharacteristics(nil, for: p.services.first!)
             }).sink(
                 receiveCompletion: { _ in },
-                receiveValue: { service in
+                receiveValue: { (peripheral, service) in
                     XCTAssert(service.identifier == mockService.identifier, "Service id does not match")
                     XCTAssert(service.characteristics?.count == 3, "Discovered wrong number of characteristics")
                     XCTAssert(service.characteristics!.allSatisfy({ $0.properties == [.read, .write] }), "Discovered wrong characteristics properties")
@@ -300,13 +300,113 @@ final class CCBPeripheralTests: CCBTestCase {
             .flatMap({ (p: CCBPeripheral) -> CCBPeripheralPublisher in
                 p.discoverServices()
             })
-            .flatMap({ (p: CCBPeripheral) -> CCBServicePublisher in
+            .flatMap({ (p: CCBPeripheral) -> CCBDiscoverCharacteristicsPublisher in
                 p.discoverCharacteristics(nil, for: p.services.first!)
             }).sink(
                 receiveCompletion: { completion in
                     switch completion {
                     case .failure(let ccbError):
                         if case .characteristicsDiscoveryError(let error) = ccbError,
+                           let nsError = error as NSError? {
+                            XCTAssert(nsError.domain == "CCBTests")
+                            XCTAssert(nsError.code == 555)
+                            ex.fulfill()
+                        }
+                    default: break
+                    }
+                },
+                receiveValue: { _ in }
+            ).store(in: &cancellables)
+
+        waitForExpectations(timeout: 60.0)
+    }
+
+    func testDiscoverDescriptors() {
+        let pD = MockPeripheralDelegate()
+        let mockDescriptors = [UUID(), UUID(), UUID()]
+            .map(CBUUID.init)
+            .map(CCBTestCase.mockDescriptor)
+        let mockService = CCBTestCase.mockService(
+            with: CBUUID(nsuuid: UUID()),
+            characteristics: [
+                CCBTestCase.mockCharacteristic(descriptors: mockDescriptors)
+            ]
+        )
+        let mp = CCBCentralManagerTests.mockPeripheral(
+            delegate: pD,
+            services: [mockService]
+        )
+        CBMCentralManagerMock.simulatePeripherals([mp])
+        let mockManager = CBCentralManagerFactory.instance(forceMock: true)
+        let sut = CCBCentralManager(manager: mockManager)
+        let ex = expectation(description: "Discovered 3 services")
+        CBMCentralManagerMock.simulatePowerOn()
+
+        sut.subscribeToStateChanges()
+            .filter({ $0 == .poweredOn })
+            .flatMap({ _ -> CCBPublisher<PeripheralDiscovered> in
+                sut.scanForPeripherals(withServices: nil, options: nil)
+            }).flatMap({ (p: PeripheralDiscovered) -> CCBPeripheralPublisher in
+                sut.connect(p.peripheral)
+            }).flatMap({ (p: CCBPeripheral) -> CCBPeripheralPublisher in
+                p.discoverServices()
+            }).flatMap({ (p: CCBPeripheral) -> CCBDiscoverCharacteristicsPublisher in
+                p.discoverCharacteristics(nil, for: p.services.first!)
+            }).flatMap({ (peripheral, service) -> CCBDiscoverDescriptorsPublisher in
+                peripheral.discoverDescriptors(for: service.characteristics!.first!)
+            }).sink(
+                receiveCompletion: { _ in },
+                receiveValue: { (peripheral, characteristic) in
+                    XCTAssert(characteristic.identifier == mockService.characteristics!.first!.identifier, "Service id does not match")
+                    XCTAssert(characteristic.descriptors!.count == 3, "Discovered wrong number of descriptors")
+                    XCTAssert(Set(characteristic.descriptors!.map(\.identifier)) == Set(mockService.characteristics!.first!.descriptors!.map(\.identifier)), "Discovered  descriptors have wrong identifiers")
+                    ex.fulfill()
+                }
+            ).store(in: &cancellables)
+
+        waitForExpectations(timeout: 60.0)
+    }
+
+    func testDiscoverDescriptorsFail() {
+        let pD = MockPeripheralDelegate(shouldDiscoverDescriptors: false)
+        let mockDescriptors = [UUID(), UUID(), UUID()]
+            .map(CBUUID.init)
+            .map(CCBTestCase.mockDescriptor)
+        let mockService = CCBTestCase.mockService(
+            with: CBUUID(nsuuid: UUID()),
+            characteristics: [
+                CCBTestCase.mockCharacteristic(descriptors: mockDescriptors)
+            ]
+        )
+        let mp = CCBCentralManagerTests.mockPeripheral(
+            delegate: pD,
+            services: [mockService]
+        )
+        CBMCentralManagerMock.simulatePeripherals([mp])
+        let mockManager = CBCentralManagerFactory.instance(forceMock: true)
+        let sut = CCBCentralManager(manager: mockManager)
+        let ex = expectation(description: "Discovered 3 services")
+        CBMCentralManagerMock.simulatePowerOn()
+
+        sut.subscribeToStateChanges()
+            .filter({ $0 == .poweredOn })
+            .flatMap({ _ -> CCBPublisher<PeripheralDiscovered> in
+                sut.scanForPeripherals(withServices: nil, options: nil)
+            }).flatMap({ (p: PeripheralDiscovered) -> CCBPeripheralPublisher in
+                sut.connect(p.peripheral)
+            })
+            .flatMap({ (p: CCBPeripheral) -> CCBPeripheralPublisher in
+                p.discoverServices()
+            })
+            .flatMap({ (p: CCBPeripheral) -> CCBDiscoverCharacteristicsPublisher in
+                p.discoverCharacteristics(nil, for: p.services.first!)
+            }).flatMap({ (peripheral, service) -> CCBDiscoverDescriptorsPublisher in
+                peripheral.discoverDescriptors(for: service.characteristics!.first!)
+            }).sink(
+                receiveCompletion: { completion in
+                    switch completion {
+                    case .failure(let ccbError):
+                        if case .descriptiorsDiscoveryError(let error) = ccbError,
                            let nsError = error as NSError? {
                             XCTAssert(nsError.domain == "CCBTests")
                             XCTAssert(nsError.code == 555)
