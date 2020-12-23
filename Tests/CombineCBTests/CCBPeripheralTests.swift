@@ -452,7 +452,7 @@ final class CCBPeripheralTests: CCBTestCase {
                 p.discoverServices()
             }).flatMap({ (p: CCBPeripheral) -> CCBDiscoverCharacteristicsPublisher in
                 p.discoverCharacteristics(nil, for: p.services.first!)
-            }).flatMap({ (peripheral, service) -> CCBCharacteristicWriteValuePublisher in
+            }).flatMap({ (peripheral, service) -> CCBCharacteristicChangeValuePublisher in
                 peripheral.writeValue(
                     CCBTestCase.mockData,
                     for: service.characteristics!.first!,
@@ -500,7 +500,7 @@ final class CCBPeripheralTests: CCBTestCase {
                 p.discoverServices()
             }).flatMap({ (p: CCBPeripheral) -> CCBDiscoverCharacteristicsPublisher in
                 p.discoverCharacteristics(nil, for: p.services.first!)
-            }).flatMap({ (peripheral, service) -> CCBCharacteristicWriteValuePublisher in
+            }).flatMap({ (peripheral, service) -> CCBCharacteristicChangeValuePublisher in
                 peripheral.writeValue(
                     Data(),
                     for: service.characteristics!.first!,
@@ -553,7 +553,7 @@ final class CCBPeripheralTests: CCBTestCase {
                 p.discoverServices()
             }).flatMap({ (p: CCBPeripheral) -> CCBDiscoverCharacteristicsPublisher in
                 p.discoverCharacteristics(nil, for: p.services.first!)
-            }).flatMap({ (peripheral, service) -> CCBCharacteristicWriteValuePublisher in
+            }).flatMap({ (peripheral, service) -> CCBCharacteristicChangeValuePublisher in
                 peripheral.writeValue(
                     CCBTestCase.mockData,
                     for: service.characteristics!.first!,
@@ -564,6 +564,93 @@ final class CCBPeripheralTests: CCBTestCase {
                     switch completion {
                     case .failure(let ccbError):
                         if case .characteristicValueWriteError(let error) = ccbError,
+                           let nsError = error as NSError? {
+                            XCTAssert(nsError.domain == "CCBTests")
+                            XCTAssert(nsError.code == 555)
+                            ex.fulfill()
+                        }
+                    default:
+                        break
+                    }
+                },
+                receiveValue: { (peripheral, characteristic) in }
+            ).store(in: &cancellables)
+
+        waitForExpectations(timeout: 60.0)
+    }
+
+    func testReadCharacteristicValue() {
+        let pD = MockPeripheralDelegate(data: CCBTestCase.mockSmallData)
+        let mockService = CCBTestCase.mockService(
+            with: CBUUID(nsuuid: UUID()),
+            characteristics: [CCBTestCase.mockCharacteristic(descriptors: [])]
+        )
+        let mp = CCBCentralManagerTests.mockPeripheral(
+            delegate: pD,
+            services: [mockService]
+        )
+        CBMCentralManagerMock.simulatePeripherals([mp])
+        let mockManager = CBCentralManagerFactory.instance(forceMock: true)
+        let sut = CCBCentralManager(manager: mockManager)
+        let ex = expectation(description: "Value read")
+        CBMCentralManagerMock.simulatePowerOn()
+
+        sut.subscribeToStateChanges()
+            .filter({ $0 == .poweredOn })
+            .flatMap({ _ -> CCBPublisher<PeripheralDiscovered> in
+                sut.scanForPeripherals(withServices: nil, options: nil)
+            }).flatMap({ (p: PeripheralDiscovered) -> CCBPeripheralPublisher in
+                sut.connect(p.peripheral)
+            }).flatMap({ (p: CCBPeripheral) -> CCBPeripheralPublisher in
+                p.discoverServices()
+            }).flatMap({ (p: CCBPeripheral) -> CCBDiscoverCharacteristicsPublisher in
+                p.discoverCharacteristics(nil, for: p.services.first!)
+            }).flatMap({ (peripheral, service) -> CCBDiscoverDescriptorsPublisher in
+                peripheral.readValue(for: service.characteristics!.first!)
+            }).sink(
+                receiveCompletion: { _ in },
+                receiveValue: { (peripheral, characteristic) in
+                    XCTAssert(characteristic.value == CCBTestCase.mockSmallData, "Read data is incorrect")
+                    ex.fulfill()
+                }
+            ).store(in: &cancellables)
+
+        waitForExpectations(timeout: 60.0)
+    }
+
+    func testReadCharacteristicValueFail() {
+        let pD = MockPeripheralDelegate(shouldReadData: false)
+        let mockService = CCBTestCase.mockService(
+            with: CBUUID(nsuuid: UUID()),
+            characteristics: [CCBTestCase.mockCharacteristic(descriptors: [])]
+        )
+        let mp = CCBCentralManagerTests.mockPeripheral(
+            delegate: pD,
+            services: [mockService]
+        )
+        CBMCentralManagerMock.simulatePeripherals([mp])
+        let mockManager = CBCentralManagerFactory.instance(forceMock: true)
+        let sut = CCBCentralManager(manager: mockManager)
+        let ex = expectation(description: "Value read")
+        CBMCentralManagerMock.simulatePowerOn()
+
+        sut.subscribeToStateChanges()
+            .filter({ $0 == .poweredOn })
+            .flatMap({ _ -> CCBPublisher<PeripheralDiscovered> in
+                sut.scanForPeripherals(withServices: nil, options: nil)
+            }).flatMap({ (p: PeripheralDiscovered) -> CCBPeripheralPublisher in
+                sut.connect(p.peripheral)
+            }).flatMap({ (p: CCBPeripheral) -> CCBPeripheralPublisher in
+                p.discoverServices()
+            }).flatMap({ (p: CCBPeripheral) -> CCBDiscoverCharacteristicsPublisher in
+                p.discoverCharacteristics(nil, for: p.services.first!)
+            }).flatMap({ (peripheral, service) -> CCBDiscoverDescriptorsPublisher in
+                peripheral.readValue(for: service.characteristics!.first!)
+            }).sink(
+                receiveCompletion: { completion in
+                    switch completion {
+                    case .failure(let ccbError):
+                        if case .characteristicValueReadError(let error) = ccbError,
                            let nsError = error as NSError? {
                             XCTAssert(nsError.domain == "CCBTests")
                             XCTAssert(nsError.code == 555)

@@ -10,6 +10,7 @@ enum CCBError: Error {
     case descriptiorsDiscoveryError(Error)
     case characteristicValueWriteDataMissing
     case characteristicValueWriteError(Error)
+    case characteristicValueReadError(Error)
 }
 
 typealias IncludedServiceDiscovered = (
@@ -27,7 +28,7 @@ typealias DescriptorsDiscovered = (
     characteristic: CBCharacteristic
 )
 
-typealias CharacteristicValueWritten = (
+typealias CharacteristicValueChanged = (
     peripheral: CCBPeripheral,
     characteristic: CBCharacteristic
 )
@@ -37,14 +38,14 @@ typealias CCBPeripheralStream = CCBStream<CCBPeripheral>
 typealias CCBDiscoverIncludedServicesStream = CCBStream<IncludedServiceDiscovered>
 typealias CCBDiscoverCharacteristicsStream = CCBStream<CharacteristicsDiscovered>
 typealias CCBDiscoverDescriptorsStream = CCBStream<DescriptorsDiscovered>
-typealias CCBCharacteristicWriteValueStream = CCBStream<CharacteristicValueWritten>
+typealias CCBCharacteristicChangeValueStream = CCBStream<CharacteristicValueChanged>
 typealias CCBPublisher<T> = AnyPublisher<T, CCBError>
 typealias CCBPeripheralPublisher = CCBPublisher<CCBPeripheral>
 typealias CCBServicePublisher = CCBPublisher<CBService>
 typealias CCBDiscoverIncludedServicesPublisher = CCBPublisher<IncludedServiceDiscovered>
 typealias CCBDiscoverCharacteristicsPublisher = CCBPublisher<CharacteristicsDiscovered>
 typealias CCBDiscoverDescriptorsPublisher = CCBPublisher<DescriptorsDiscovered>
-typealias CCBCharacteristicWriteValuePublisher = CCBPublisher<CharacteristicValueWritten>
+typealias CCBCharacteristicChangeValuePublisher = CCBPublisher<CharacteristicValueChanged>
 typealias CBOptions = [String: Any]
 
 extension Data {

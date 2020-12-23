@@ -74,6 +74,12 @@ class CCBTestCase: XCTestCase {
         .enumerated()
         .map({ UInt8($0.offset % 2) })
     )
+
+    static let mockSmallData: Data = Data(
+        Array(repeating: 0, count: 100)
+        .enumerated()
+        .map({ UInt8($0.offset % 2) })
+    )
 }
 
 class MockPeripheralDelegate: CBMPeripheralSpecDelegate {
@@ -84,6 +90,7 @@ class MockPeripheralDelegate: CBMPeripheralSpecDelegate {
         shouldDiscoverCharacteristics: Bool = true,
         shouldDiscoverDescriptors: Bool = true,
         shouldWriteData: Bool = true,
+        shouldReadData: Bool = true,
         data: Data = Data()) {
         self.shouldConnect = shouldConnect
         self.shouldDiscoverServices = shouldDiscoverServices
@@ -91,6 +98,7 @@ class MockPeripheralDelegate: CBMPeripheralSpecDelegate {
         self.shouldDiscoverCharacteristics = shouldDiscoverCharacteristics
         self.shouldDiscoverDescriptors = shouldDiscoverDescriptors
         self.shouldWriteData = shouldWriteData
+        self.shouldReadData = shouldReadData
         self.data = data
     }
 
@@ -100,6 +108,7 @@ class MockPeripheralDelegate: CBMPeripheralSpecDelegate {
     let shouldDiscoverCharacteristics: Bool
     let shouldDiscoverDescriptors: Bool
     let shouldWriteData: Bool
+    var shouldReadData: Bool
     var data: Data
 
     func peripheralDidReceiveConnectionRequest(
@@ -166,6 +175,17 @@ class MockPeripheralDelegate: CBMPeripheralSpecDelegate {
         if shouldWriteData {
             self.data.append(data)
             return .success(())
+        } else {
+            return .failure(CCBTestCase.error)
+        }
+    }
+
+    func peripheral(
+        _ peripheral: CBMPeripheralSpec,
+        didReceiveReadRequestFor charateristic: CBMCharacteristic
+    ) -> Result<Data, Error> {
+        if shouldReadData {
+            return .success(data)
         } else {
             return .failure(CCBTestCase.error)
         }
