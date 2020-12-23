@@ -339,7 +339,7 @@ final class CCBPeripheralTests: CCBTestCase {
         CBMCentralManagerMock.simulatePeripherals([mp])
         let mockManager = CBCentralManagerFactory.instance(forceMock: true)
         let sut = CCBCentralManager(manager: mockManager)
-        let ex = expectation(description: "Discovered 3 services")
+        let ex = expectation(description: "Discovered 3 descriptors")
         CBMCentralManagerMock.simulatePowerOn()
 
         sut.subscribeToStateChanges()
@@ -385,7 +385,7 @@ final class CCBPeripheralTests: CCBTestCase {
         CBMCentralManagerMock.simulatePeripherals([mp])
         let mockManager = CBCentralManagerFactory.instance(forceMock: true)
         let sut = CCBCentralManager(manager: mockManager)
-        let ex = expectation(description: "Discovered 3 services")
+        let ex = expectation(description: "Discovered 3 descriptors")
         CBMCentralManagerMock.simulatePowerOn()
 
         sut.subscribeToStateChanges()
@@ -416,6 +416,164 @@ final class CCBPeripheralTests: CCBTestCase {
                     }
                 },
                 receiveValue: { _ in }
+            ).store(in: &cancellables)
+
+        waitForExpectations(timeout: 60.0)
+    }
+
+    func testWriteCharacteristicValueMultipleChunks() {
+        let pD = MockPeripheralDelegate()
+        let mockDescriptors = [UUID(), UUID(), UUID()]
+            .map(CBUUID.init)
+            .map(CCBTestCase.mockDescriptor)
+        let mockService = CCBTestCase.mockService(
+            with: CBUUID(nsuuid: UUID()),
+            characteristics: [
+                CCBTestCase.mockCharacteristic(descriptors: mockDescriptors)
+            ]
+        )
+        let mp = CCBCentralManagerTests.mockPeripheral(
+            delegate: pD,
+            services: [mockService]
+        )
+        CBMCentralManagerMock.simulatePeripherals([mp])
+        let mockManager = CBCentralManagerFactory.instance(forceMock: true)
+        let sut = CCBCentralManager(manager: mockManager)
+        let ex = expectation(description: "Data writing finished")
+        CBMCentralManagerMock.simulatePowerOn()
+
+        sut.subscribeToStateChanges()
+            .filter({ $0 == .poweredOn })
+            .flatMap({ _ -> CCBPublisher<PeripheralDiscovered> in
+                sut.scanForPeripherals(withServices: nil, options: nil)
+            }).flatMap({ (p: PeripheralDiscovered) -> CCBPeripheralPublisher in
+                sut.connect(p.peripheral)
+            }).flatMap({ (p: CCBPeripheral) -> CCBPeripheralPublisher in
+                p.discoverServices()
+            }).flatMap({ (p: CCBPeripheral) -> CCBDiscoverCharacteristicsPublisher in
+                p.discoverCharacteristics(nil, for: p.services.first!)
+            }).flatMap({ (peripheral, service) -> CCBCharacteristicWriteValuePublisher in
+                peripheral.writeValue(
+                    CCBTestCase.mockData,
+                    for: service.characteristics!.first!,
+                    type: .withResponse
+                )
+            }).sink(
+                receiveCompletion: { _ in },
+                receiveValue: { (peripheral, characteristic) in
+                    XCTAssert(pD.data == CCBTestCase.mockData, "Data written is incorrect")
+                    ex.fulfill()
+                }
+            ).store(in: &cancellables)
+
+        waitForExpectations(timeout: 60.0)
+    }
+
+    func testWriteCharacteristicValueFailNoData() {
+        let pD = MockPeripheralDelegate()
+        let mockDescriptors = [UUID(), UUID(), UUID()]
+            .map(CBUUID.init)
+            .map(CCBTestCase.mockDescriptor)
+        let mockService = CCBTestCase.mockService(
+            with: CBUUID(nsuuid: UUID()),
+            characteristics: [
+                CCBTestCase.mockCharacteristic(descriptors: mockDescriptors)
+            ]
+        )
+        let mp = CCBCentralManagerTests.mockPeripheral(
+            delegate: pD,
+            services: [mockService]
+        )
+        CBMCentralManagerMock.simulatePeripherals([mp])
+        let mockManager = CBCentralManagerFactory.instance(forceMock: true)
+        let sut = CCBCentralManager(manager: mockManager)
+        let ex = expectation(description: "Data writing failed due to no data")
+        CBMCentralManagerMock.simulatePowerOn()
+
+        sut.subscribeToStateChanges()
+            .filter({ $0 == .poweredOn })
+            .flatMap({ _ -> CCBPublisher<PeripheralDiscovered> in
+                sut.scanForPeripherals(withServices: nil, options: nil)
+            }).flatMap({ (p: PeripheralDiscovered) -> CCBPeripheralPublisher in
+                sut.connect(p.peripheral)
+            }).flatMap({ (p: CCBPeripheral) -> CCBPeripheralPublisher in
+                p.discoverServices()
+            }).flatMap({ (p: CCBPeripheral) -> CCBDiscoverCharacteristicsPublisher in
+                p.discoverCharacteristics(nil, for: p.services.first!)
+            }).flatMap({ (peripheral, service) -> CCBCharacteristicWriteValuePublisher in
+                peripheral.writeValue(
+                    Data(),
+                    for: service.characteristics!.first!,
+                    type: .withResponse
+                )
+            }).sink(
+                receiveCompletion: { completion in
+                    switch completion {
+                    case .failure(let ccbError):
+                        if case .characteristicValueWriteDataMissing = ccbError {
+                            ex.fulfill()
+                        }
+                    default: break
+                    }
+                },
+                receiveValue: { (peripheral, characteristic) in }
+            ).store(in: &cancellables)
+
+        waitForExpectations(timeout: 60.0)
+    }
+
+    func testWriteCharacteristicValueFail() {
+        let pD = MockPeripheralDelegate(shouldWriteData: false)
+        let mockDescriptors = [UUID(), UUID(), UUID()]
+            .map(CBUUID.init)
+            .map(CCBTestCase.mockDescriptor)
+        let mockService = CCBTestCase.mockService(
+            with: CBUUID(nsuuid: UUID()),
+            characteristics: [
+                CCBTestCase.mockCharacteristic(descriptors: mockDescriptors)
+            ]
+        )
+        let mp = CCBCentralManagerTests.mockPeripheral(
+            delegate: pD,
+            services: [mockService]
+        )
+        CBMCentralManagerMock.simulatePeripherals([mp])
+        let mockManager = CBCentralManagerFactory.instance(forceMock: true)
+        let sut = CCBCentralManager(manager: mockManager)
+        let ex = expectation(description: "Data writing failed due to no data")
+        CBMCentralManagerMock.simulatePowerOn()
+
+        sut.subscribeToStateChanges()
+            .filter({ $0 == .poweredOn })
+            .flatMap({ _ -> CCBPublisher<PeripheralDiscovered> in
+                sut.scanForPeripherals(withServices: nil, options: nil)
+            }).flatMap({ (p: PeripheralDiscovered) -> CCBPeripheralPublisher in
+                sut.connect(p.peripheral)
+            }).flatMap({ (p: CCBPeripheral) -> CCBPeripheralPublisher in
+                p.discoverServices()
+            }).flatMap({ (p: CCBPeripheral) -> CCBDiscoverCharacteristicsPublisher in
+                p.discoverCharacteristics(nil, for: p.services.first!)
+            }).flatMap({ (peripheral, service) -> CCBCharacteristicWriteValuePublisher in
+                peripheral.writeValue(
+                    CCBTestCase.mockData,
+                    for: service.characteristics!.first!,
+                    type: .withResponse
+                )
+            }).sink(
+                receiveCompletion: { completion in
+                    switch completion {
+                    case .failure(let ccbError):
+                        if case .characteristicValueWriteError(let error) = ccbError,
+                           let nsError = error as NSError? {
+                            XCTAssert(nsError.domain == "CCBTests")
+                            XCTAssert(nsError.code == 555)
+                            ex.fulfill()
+                        }
+                    default:
+                        break
+                    }
+                },
+                receiveValue: { (peripheral, characteristic) in }
             ).store(in: &cancellables)
 
         waitForExpectations(timeout: 60.0)

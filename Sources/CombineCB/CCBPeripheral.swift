@@ -13,6 +13,7 @@ class CCBPeripheral: NSObject {
     private var includedServicesDiscoverStreams: Dictionary<CBUUID, CCBDiscoverIncludedServicesStream> = [:]
     private var characteristicsDiscoverStreams: Dictionary<CBUUID, CCBDiscoverCharacteristicsStream> = [:]
     private var descriptorsDiscoverStreams: Dictionary<CBUUID, CCBDiscoverDescriptorsStream> = [:]
+    private var characteristicValueWriters: Dictionary<CBUUID, CCBCharacteristicValueWriter> = [:]
 
     internal var p: CBPeripheral { peripheral }
     internal var id: UUID { peripheral.identifier }
@@ -58,6 +59,29 @@ class CCBPeripheral: NSObject {
         return stream.eraseToAnyPublisher()
     }
 
+    internal func writeValue(
+        _ data: Data,
+        for characteristic: CBCharacteristic,
+        type: CBCharacteristicWriteType
+    ) -> CCBCharacteristicWriteValuePublisher {
+        let writer = CCBCharacteristicValueWriter(
+            data: data,
+            chunkSize: peripheral.maximumWriteValueLength(for: type),
+            writeType: type,
+            stream: CCBCharacteristicWriteValueStream()
+        )
+        characteristicValueWriters[characteristic.uuid] = writer
+
+        guard writer.hasRemainingChunks,
+              let nc = writer.nextChunk else {
+            return Fail(error: CCBError.characteristicValueWriteDataMissing).eraseToAnyPublisher()
+        }
+
+        peripheral.writeValue(nc, for: characteristic, type: type)
+
+        return writer.stream.eraseToAnyPublisher()
+    }
+
     private func includedServicesDiscoverStream(
         for id: CBUUID
     ) -> CCBDiscoverIncludedServicesStream {
@@ -101,11 +125,10 @@ extension CCBPeripheral: CBPeripheralDelegate {
         didDiscoverServices error: Error?
     ) {
         if let e = error {
-            serviceDiscoverStream
-                .send(completion: .failure(.serviceDiscoveryError(e)))
+            serviceDiscoverStream.send(completion: .failure(.serviceDiscoveryError(e)))
         } else {
-            serviceDiscoverStream
-                .send(self)
+            serviceDiscoverStream.send(self)
+            serviceDiscoverStream.send(completion: .finished)
         }
     }
 
@@ -117,11 +140,10 @@ extension CCBPeripheral: CBPeripheralDelegate {
         let stream = includedServicesDiscoverStream(for: service.uuid)
 
         if let e = error {
-            stream
-                .send(completion: .failure(.includedServiceDiscoveryError(e)))
+            stream.send(completion: .failure(.includedServiceDiscoveryError(e)))
         } else {
-            stream
-                .send((self, service))
+            stream.send((self, service))
+            stream.send(completion: .finished)
         }
 
         includedServicesDiscoverStreams.removeValue(forKey: service.uuid)
@@ -138,6 +160,7 @@ extension CCBPeripheral: CBPeripheralDelegate {
             stream.send(completion: .failure(.characteristicsDiscoveryError(e)))
         } else {
             stream.send((self, service))
+            stream.send(completion: .finished)
         }
 
         characteristicsDiscoverStreams.removeValue(forKey: service.uuid)
@@ -154,8 +177,51 @@ extension CCBPeripheral: CBPeripheralDelegate {
             stream.send(completion: .failure(.descriptiorsDiscoveryError(e)))
         } else {
             stream.send((self, characteristic))
+            stream.send(completion: .finished)
         }
 
         descriptorsDiscoverStreams.removeValue(forKey: characteristic.uuid)
+    }
+
+    func peripheral(
+        _ peripheral: CBPeripheral,
+        didWriteValueFor characteristic: CBCharacteristic,
+        error: Error?
+    ) {
+        guard let writer = characteristicValueWriters[characteristic.uuid] else {
+            return
+        }
+
+        if let e = error {
+            writer.stream.send(completion: .failure(.characteristicValueWriteError(e)))
+            characteristicValueWriters.removeValue(forKey: characteristic.uuid)
+        } else if writer.hasRemainingChunks,
+           let nc = writer.nextChunk {
+            peripheral.writeValue(nc, for: characteristic, type: writer.writeType)
+        } else {
+            writer.stream.send((self, characteristic))
+            writer.stream.send(completion: .finished)
+            characteristicValueWriters.removeValue(forKey: characteristic.uuid)
+        }
+    }
+ }
+
+class CCBCharacteristicValueWriter {
+    private var chunks: [Data]
+    internal let stream: CCBCharacteristicWriteValueStream
+    internal let writeType: CBCharacteristicWriteType
+
+    internal var hasRemainingChunks: Bool { chunks.isEmpty == false }
+    internal var nextChunk: Data? { chunks.removeFirst() }
+
+    init(
+        data: Data,
+        chunkSize: Int,
+        writeType: CBCharacteristicWriteType,
+        stream: CCBCharacteristicWriteValueStream
+    ) {
+        self.chunks = data.chunks(of: chunkSize)
+        self.writeType = writeType
+        self.stream = stream
     }
 }

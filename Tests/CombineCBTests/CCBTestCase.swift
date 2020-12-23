@@ -68,6 +68,12 @@ class CCBTestCase: XCTestCase {
     ) -> CBMDescriptorMock {
         CBMDescriptorMock(type: uuid)
     }
+
+    static let mockData: Data = Data(
+        Array(repeating: 0, count: 3001)
+        .enumerated()
+        .map({ UInt8($0.offset % 2) })
+    )
 }
 
 class MockPeripheralDelegate: CBMPeripheralSpecDelegate {
@@ -77,13 +83,15 @@ class MockPeripheralDelegate: CBMPeripheralSpecDelegate {
         shouldDiscoverIncludedServices: Bool = true,
         shouldDiscoverCharacteristics: Bool = true,
         shouldDiscoverDescriptors: Bool = true,
-        services: [CBMServiceMock] = []) {
+        shouldWriteData: Bool = true,
+        data: Data = Data()) {
         self.shouldConnect = shouldConnect
         self.shouldDiscoverServices = shouldDiscoverServices
         self.shouldDiscoverIncludedServices = shouldDiscoverIncludedServices
         self.shouldDiscoverCharacteristics = shouldDiscoverCharacteristics
         self.shouldDiscoverDescriptors = shouldDiscoverDescriptors
-        self.services = services
+        self.shouldWriteData = shouldWriteData
+        self.data = data
     }
 
     let shouldConnect: Bool
@@ -91,7 +99,8 @@ class MockPeripheralDelegate: CBMPeripheralSpecDelegate {
     let shouldDiscoverIncludedServices: Bool
     let shouldDiscoverCharacteristics: Bool
     let shouldDiscoverDescriptors: Bool
-    let services: [CBMServiceMock]
+    let shouldWriteData: Bool
+    var data: Data
 
     func peripheralDidReceiveConnectionRequest(
         _ peripheral: CBMPeripheralSpec
@@ -143,6 +152,19 @@ class MockPeripheralDelegate: CBMPeripheralSpecDelegate {
         didReceiveDescriptorsDiscoveryRequestFor characteristic: CBMCharacteristic
     ) -> Result<Void, Error> {
         if shouldDiscoverDescriptors {
+            return .success(())
+        } else {
+            return .failure(CCBTestCase.error)
+        }
+    }
+
+    func peripheral(
+        _ peripheral: CBMPeripheralSpec,
+        didReceiveWriteRequestFor characteristic: CBMCharacteristic,
+        data: Data
+    ) -> Result<Void, Error> {
+        if shouldWriteData {
+            self.data.append(data)
             return .success(())
         } else {
             return .failure(CCBTestCase.error)
