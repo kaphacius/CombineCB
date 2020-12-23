@@ -66,16 +66,19 @@ class MockPeripheralDelegate: CBMPeripheralSpecDelegate {
         shouldConnect: Bool = true,
         shouldDiscoverServices: Bool = true,
         shouldDiscoverIncludedServices: Bool = true,
+        shouldDiscoverCharacteristics: Bool = true,
         services: [CBMServiceMock] = []) {
         self.shouldConnect = shouldConnect
         self.shouldDiscoverServices = shouldDiscoverServices
         self.shouldDiscoverIncludedServices = shouldDiscoverIncludedServices
+        self.shouldDiscoverCharacteristics = shouldDiscoverCharacteristics
         self.services = services
     }
 
     let shouldConnect: Bool
     let shouldDiscoverServices: Bool
     let shouldDiscoverIncludedServices: Bool
+    let shouldDiscoverCharacteristics: Bool
     let services: [CBMServiceMock]
 
     func peripheralDidReceiveConnectionRequest(
@@ -105,6 +108,18 @@ class MockPeripheralDelegate: CBMPeripheralSpecDelegate {
         for service: CBMService
     ) -> Result<Void, Error> {
         if shouldDiscoverIncludedServices {
+            return .success(())
+        } else {
+            return .failure(CCBTestCase.error)
+        }
+    }
+
+    func peripheral(
+        _ peripheral: CBMPeripheralSpec,
+        didReceiveCharacteristicsDiscoveryRequest characteristicUUIDs: [CBMUUID]?,
+        for service: CBMService
+    ) -> Result<Void, Error> {
+        if shouldDiscoverCharacteristics {
             return .success(())
         } else {
             return .failure(CCBTestCase.error)
