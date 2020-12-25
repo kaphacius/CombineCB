@@ -11,6 +11,7 @@ enum CCBError: Error {
     case characteristicValueWriteDataMissing
     case characteristicValueWriteError(Error)
     case characteristicValueReadError(Error)
+    case characteristicUpdateNotificationStateError(Error)
 }
 
 typealias IncludedServiceDiscovered = (

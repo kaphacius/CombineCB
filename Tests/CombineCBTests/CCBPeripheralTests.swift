@@ -666,6 +666,132 @@ final class CCBPeripheralTests: CCBTestCase {
         waitForExpectations(timeout: 60.0)
     }
 
+    func testNotifyCharacteristicValueUpdate() {
+        let mockData: [Data] = [
+            Data(repeating: 0, count: 100),
+            Data(repeating: 1, count: 150),
+            Data(repeating: 2, count: 200)
+        ]
+        let pD = MockPeripheralDelegate(data: mockData[0])
+        let mockCharacteristic = CCBTestCase.mockCharacteristic(descriptors: [])
+        let mockService = CCBTestCase.mockService(
+            with: CBUUID(nsuuid: UUID()),
+            characteristics: [mockCharacteristic]
+        )
+        let mp = CCBCentralManagerTests.mockPeripheral(
+            delegate: pD,
+            services: [mockService]
+        )
+        CBMCentralManagerMock.simulatePeripherals([mp])
+        let mockManager = CBCentralManagerFactory.instance(forceMock: true)
+        let sut = CCBCentralManager(manager: mockManager)
+        CBMCentralManagerMock.simulatePowerOn()
+
+        var notifyPublisher: CCBCharacteristicChangeValuePublisher? = nil
+
+        sut.subscribeToStateChanges()
+            .filter({ $0 == .poweredOn })
+            .flatMap({ _ -> CCBPublisher<PeripheralDiscovered> in
+                sut.scanForPeripherals(withServices: nil, options: nil)
+            }).flatMap({ (p: PeripheralDiscovered) -> CCBPeripheralPublisher in
+                sut.connect(p.peripheral)
+            }).flatMap({ (p: CCBPeripheral) -> CCBPeripheralPublisher in
+                p.discoverServices()
+            }).flatMap({ (p: CCBPeripheral) -> CCBDiscoverCharacteristicsPublisher in
+                p.discoverCharacteristics(nil, for: p.services.first!)
+            }).map({ (peripheral, service) -> CCBDiscoverDescriptorsPublisher in
+                peripheral.setNotifyValue(true, for: service.characteristics!.first!)
+            }).sink(
+                receiveCompletion: { _ in },
+                receiveValue: { p in
+                    notifyPublisher = p
+                }
+            ).store(in: &cancellables)
+
+        let predicate = NSPredicate { _,_ in notifyPublisher != nil }
+        wait(for: [expectation(for: predicate, evaluatedWith: nil)], timeout: 10.0)
+
+        let ex = expectation(description: "Notified 3 times and completed")
+        var notifyCount = 0
+
+        notifyPublisher!.sink(
+            receiveCompletion: { completion in
+                XCTAssert(notifyCount == mockData.count, "Notify number is incorrect")
+                switch completion {
+                case .finished:
+                    ex.fulfill()
+                case .failure:
+                    XCTFail("Unexpected failure when notifying")
+                }
+            },
+            receiveValue: { (peripheral, characteristic) in
+                XCTAssert(characteristic.value == mockData[notifyCount], "Received data is incorrect")
+                notifyCount += 1
+                if notifyCount == mockData.count {
+                    _ = peripheral.setNotifyValue(false, for: characteristic)
+                }
+            }).store(in: &cancellables)
+
+        mockData.enumerated().forEach({ (i, e) in
+            DispatchQueue.main.asyncAfter(
+                deadline: .now() + .milliseconds((i + 1) * 200),
+                execute: {
+                    mp.simulateValueUpdate(mockData[i], for: mockCharacteristic)
+                }
+            )
+        })
+
+        waitForExpectations(timeout: 60.0)
+    }
+
+    func testNotifyCharacteristicValueUpdateFail() {
+        let pD = MockPeripheralDelegate(shouldNotifyData: false)
+        let mockService = CCBTestCase.mockService(
+            with: CBUUID(nsuuid: UUID()),
+            characteristics: [CCBTestCase.mockCharacteristic(descriptors: [])]
+        )
+        let mp = CCBCentralManagerTests.mockPeripheral(
+            delegate: pD,
+            services: [mockService]
+        )
+        CBMCentralManagerMock.simulatePeripherals([mp])
+        let mockManager = CBCentralManagerFactory.instance(forceMock: true)
+        let sut = CCBCentralManager(manager: mockManager)
+        let ex = expectation(description: "Value read")
+        CBMCentralManagerMock.simulatePowerOn()
+
+        sut.subscribeToStateChanges()
+            .filter({ $0 == .poweredOn })
+            .flatMap({ _ -> CCBPublisher<PeripheralDiscovered> in
+                sut.scanForPeripherals(withServices: nil, options: nil)
+            }).flatMap({ (p: PeripheralDiscovered) -> CCBPeripheralPublisher in
+                sut.connect(p.peripheral)
+            }).flatMap({ (p: CCBPeripheral) -> CCBPeripheralPublisher in
+                p.discoverServices()
+            }).flatMap({ (p: CCBPeripheral) -> CCBDiscoverCharacteristicsPublisher in
+                p.discoverCharacteristics(nil, for: p.services.first!)
+            }).flatMap({ (peripheral, service) -> CCBDiscoverDescriptorsPublisher in
+                peripheral.setNotifyValue(true, for: service.characteristics!.first!)
+            }).sink(
+                receiveCompletion: { completion in
+                    switch completion {
+                    case .failure(let ccbError):
+                        if case .characteristicUpdateNotificationStateError(let error) = ccbError,
+                           let nsError = error as NSError? {
+                            XCTAssert(nsError.domain == "CCBTests")
+                            XCTAssert(nsError.code == 555)
+                            ex.fulfill()
+                        }
+                    default:
+                        break
+                    }
+                },
+                receiveValue: { (peripheral, characteristic) in }
+            ).store(in: &cancellables)
+
+        waitForExpectations(timeout: 60.0)
+    }
+
     static var allTests = [
         ("testAllServiceDiscovery", testAllServiceDiscovery),
         ("testCertainServiceDiscovery", testCertainServiceDiscovery),

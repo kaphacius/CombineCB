@@ -15,6 +15,7 @@ class CCBPeripheral: NSObject {
     private var descriptorsDiscoverStreams: Dictionary<CBUUID, CCBDiscoverDescriptorsStream> = [:]
     private var characteristicValueWriters: Dictionary<CBUUID, CCBCharacteristicValueWriter> = [:]
     private var characteristicReadValueStreams: Dictionary<CBUUID, CCBCharacteristicChangeValueStream> = [:]
+    private var characteristicNotifyValueStreams: Dictionary<CBUUID, CCBCharacteristicChangeValueStream> = [:]
 
     internal var p: CBPeripheral { peripheral }
     internal var id: UUID { peripheral.identifier }
@@ -84,7 +85,15 @@ class CCBPeripheral: NSObject {
         for characteristic: CBCharacteristic
     ) -> CCBCharacteristicChangeValuePublisher {
         peripheral.readValue(for: characteristic)
-        return characteristicsReadValueStream(for: characteristic.uuid).eraseToAnyPublisher()
+        return characteristicReadValueStream(for: characteristic.uuid).eraseToAnyPublisher()
+    }
+
+    internal func setNotifyValue(
+        _ enabled: Bool,
+        for characteristic: CBCharacteristic
+    ) -> CCBCharacteristicChangeValuePublisher {
+        peripheral.setNotifyValue(enabled, for: characteristic)
+        return characteristicNotifyValueStream(for: characteristic.uuid).eraseToAnyPublisher()
     }
 
     private func includedServicesDiscoverStream(
@@ -123,7 +132,7 @@ class CCBPeripheral: NSObject {
         }
     }
 
-    private func characteristicsReadValueStream(
+    private func characteristicReadValueStream(
         for id: CBUUID
     ) -> CCBCharacteristicChangeValueStream {
         if let s = characteristicReadValueStreams[id] {
@@ -131,6 +140,18 @@ class CCBPeripheral: NSObject {
         } else {
             let stream = CCBCharacteristicChangeValueStream()
             characteristicReadValueStreams[id] = stream
+            return stream
+        }
+    }
+
+    private func characteristicNotifyValueStream(
+        for id: CBUUID
+    ) -> CCBCharacteristicChangeValueStream {
+        if let s = characteristicNotifyValueStreams[id] {
+            return s
+        } else {
+            let stream = CCBCharacteristicChangeValueStream()
+            characteristicNotifyValueStreams[id] = stream
             return stream
         }
     }
@@ -227,16 +248,43 @@ extension CCBPeripheral: CBPeripheralDelegate {
         didUpdateValueFor characteristic: CBCharacteristic,
         error: Error?
     ) {
-        let stream = characteristicsReadValueStream(for: characteristic.uuid)
+        if characteristic.isNotifying {
+            if let e = error {
+                characteristicNotifyValueStream(for: characteristic.uuid)
+                    .send(completion: .failure(.characteristicValueReadError(e)))
+                characteristicsDiscoverStreams.removeValue(forKey: characteristic.uuid)
+            } else {
+                characteristicNotifyValueStream(for: characteristic.uuid)
+                    .send((self, characteristic))
+            }
+        } else {
+            if let e = error {
+                characteristicReadValueStream(for: characteristic.uuid)
+                    .send(completion: .failure(.characteristicValueReadError(e)))
+            } else {
+                characteristicReadValueStream(for: characteristic.uuid)
+                    .send((self, characteristic))
+                characteristicReadValueStream(for: characteristic.uuid)
+                    .send(completion: .finished)
+            }
+            characteristicReadValueStreams.removeValue(forKey: characteristic.uuid)
+        }
+    }
+
+    func peripheral(
+        _ peripheral: CBPeripheral,
+        didUpdateNotificationStateFor characteristic: CBCharacteristic,
+        error: Error?
+    ) {
+        let stream = characteristicNotifyValueStream(for: characteristic.uuid)
 
         if let e = error {
-            stream.send(completion: .failure(.characteristicValueReadError(e)))
-        } else {
-            stream.send((self, characteristic))
+            stream.send(completion: .failure(.characteristicUpdateNotificationStateError(e)))
+            characteristicNotifyValueStreams.removeValue(forKey: characteristic.uuid)
+        } else if characteristic.isNotifying == false {
             stream.send(completion: .finished)
+            characteristicNotifyValueStreams.removeValue(forKey: characteristic.uuid)
         }
-
-        characteristicReadValueStreams.removeValue(forKey: characteristic.uuid)
     }
  }
 

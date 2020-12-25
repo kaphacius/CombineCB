@@ -91,6 +91,7 @@ class MockPeripheralDelegate: CBMPeripheralSpecDelegate {
         shouldDiscoverDescriptors: Bool = true,
         shouldWriteData: Bool = true,
         shouldReadData: Bool = true,
+        shouldNotifyData: Bool = true,
         data: Data = Data()) {
         self.shouldConnect = shouldConnect
         self.shouldDiscoverServices = shouldDiscoverServices
@@ -99,6 +100,7 @@ class MockPeripheralDelegate: CBMPeripheralSpecDelegate {
         self.shouldDiscoverDescriptors = shouldDiscoverDescriptors
         self.shouldWriteData = shouldWriteData
         self.shouldReadData = shouldReadData
+        self.shouldNotifyData = shouldNotifyData
         self.data = data
     }
 
@@ -109,6 +111,7 @@ class MockPeripheralDelegate: CBMPeripheralSpecDelegate {
     let shouldDiscoverDescriptors: Bool
     let shouldWriteData: Bool
     var shouldReadData: Bool
+    var shouldNotifyData: Bool
     var data: Data
 
     func peripheralDidReceiveConnectionRequest(
@@ -186,6 +189,18 @@ class MockPeripheralDelegate: CBMPeripheralSpecDelegate {
     ) -> Result<Data, Error> {
         if shouldReadData {
             return .success(data)
+        } else {
+            return .failure(CCBTestCase.error)
+        }
+    }
+
+    func peripheral(
+        _ peripheral: CBMPeripheralSpec,
+        didReceiveSetNotifyRequest enabled: Bool,
+        for characteristic: CBMCharacteristic
+    ) -> Result<Void, Error> {
+        if shouldNotifyData {
+            return .success(())
         } else {
             return .failure(CCBTestCase.error)
         }
