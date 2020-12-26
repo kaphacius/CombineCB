@@ -1,13 +1,8 @@
-#if TEST
-    import CoreBluetoothMock
-#else
-    import CoreBluetooth
-#endif
-
+import CoreBluetooth
 import Foundation
 import Combine
 
-class CCBPeripheral: NSObject {
+final public class CCBPeripheral: NSObject {
     private let peripheral: CBPeripheral
     private let serviceDiscoverStream = CCBStream<CCBPeripheral>()
     private var includedServicesDiscoverStreams: Dictionary<CBUUID, CCBDiscoverIncludedServicesStream> = [:]
@@ -17,9 +12,9 @@ class CCBPeripheral: NSObject {
     private var characteristicReadValueStreams: Dictionary<CBUUID, CCBCharacteristicChangeValueStream> = [:]
     private var characteristicNotifyValueStreams: Dictionary<CBUUID, CCBCharacteristicChangeValueStream> = [:]
 
-    internal var p: CBPeripheral { peripheral }
-    internal var id: UUID { peripheral.identifier }
-    internal var services: [CBService] { peripheral.services ?? [] }
+    var p: CBPeripheral { peripheral }
+    var id: UUID { peripheral.identifier }
+    var services: [CBService] { peripheral.services ?? [] }
 
     internal init(peripheral: CBPeripheral) {
         self.peripheral = peripheral
@@ -28,14 +23,14 @@ class CCBPeripheral: NSObject {
         peripheral.delegate = self
     }
 
-    internal func discoverServices(
+    public func discoverServices(
         _ serviceUUIDs: [CBUUID]? = nil
     ) -> CCBPeripheralPublisher {
         peripheral.discoverServices(serviceUUIDs)
         return serviceDiscoverStream.eraseToAnyPublisher()
     }
 
-    internal func discoverIncludedServices(
+    public func discoverIncludedServices(
         _ serviceUUIDs: [CBUUID]? = nil,
         for service: CBService
     ) -> CCBPublisher<IncludedServiceDiscovered> {
@@ -43,7 +38,7 @@ class CCBPeripheral: NSObject {
         return includedServicesDiscoverStream(for: service.uuid).eraseToAnyPublisher()
     }
 
-    internal func discoverCharacteristics(
+    public func discoverCharacteristics(
         _ characteristicUUIDs: [CBUUID]?,
         for service: CBService
     ) -> CCBPublisher<CharacteristicsDiscovered> {
@@ -51,14 +46,14 @@ class CCBPeripheral: NSObject {
         return characteristicsDiscoverStream(for: service.uuid).eraseToAnyPublisher()
     }
 
-    internal func discoverDescriptors(
+    public func discoverDescriptors(
         for characteristic: CBCharacteristic
     ) -> CCBDiscoverDescriptorsPublisher {
         peripheral.discoverDescriptors(for: characteristic)
         return descriptorsDiscoverStream(for: characteristic.uuid).eraseToAnyPublisher()
     }
 
-    internal func writeValue(
+    public func writeValue(
         _ data: Data,
         for characteristic: CBCharacteristic,
         type: CBCharacteristicWriteType
@@ -81,14 +76,14 @@ class CCBPeripheral: NSObject {
         return writer.stream.eraseToAnyPublisher()
     }
 
-    internal func readValue(
+    public func readValue(
         for characteristic: CBCharacteristic
     ) -> CCBCharacteristicChangeValuePublisher {
         peripheral.readValue(for: characteristic)
         return characteristicReadValueStream(for: characteristic.uuid).eraseToAnyPublisher()
     }
 
-    internal func setNotifyValue(
+    public func setNotifyValue(
         _ enabled: Bool,
         for characteristic: CBCharacteristic
     ) -> CCBCharacteristicChangeValuePublisher {
@@ -158,7 +153,7 @@ class CCBPeripheral: NSObject {
 }
 
 extension CCBPeripheral: CBPeripheralDelegate {
-    func peripheral(
+    public func peripheral(
         _ peripheral: CBPeripheral,
         didDiscoverServices error: Error?
     ) {
@@ -170,7 +165,7 @@ extension CCBPeripheral: CBPeripheralDelegate {
         }
     }
 
-    func peripheral(
+    public func peripheral(
         _ peripheral: CBPeripheral,
         didDiscoverIncludedServicesFor service: CBService,
         error: Error?
@@ -187,7 +182,7 @@ extension CCBPeripheral: CBPeripheralDelegate {
         includedServicesDiscoverStreams.removeValue(forKey: service.uuid)
     }
 
-    func peripheral(
+    public func peripheral(
         _ peripheral: CBPeripheral,
         didDiscoverCharacteristicsFor service: CBService,
         error: Error?
@@ -204,7 +199,7 @@ extension CCBPeripheral: CBPeripheralDelegate {
         characteristicsDiscoverStreams.removeValue(forKey: service.uuid)
     }
 
-    func peripheral(
+    public func peripheral(
         _ peripheral: CBPeripheral,
         didDiscoverDescriptorsFor characteristic: CBCharacteristic,
         error: Error?
@@ -221,7 +216,7 @@ extension CCBPeripheral: CBPeripheralDelegate {
         descriptorsDiscoverStreams.removeValue(forKey: characteristic.uuid)
     }
 
-    func peripheral(
+    public func peripheral(
         _ peripheral: CBPeripheral,
         didWriteValueFor characteristic: CBCharacteristic,
         error: Error?
@@ -243,7 +238,7 @@ extension CCBPeripheral: CBPeripheralDelegate {
         }
     }
 
-    func peripheral(
+    public func peripheral(
         _ peripheral: CBPeripheral,
         didUpdateValueFor characteristic: CBCharacteristic,
         error: Error?
@@ -271,7 +266,7 @@ extension CCBPeripheral: CBPeripheralDelegate {
         }
     }
 
-    func peripheral(
+    public func peripheral(
         _ peripheral: CBPeripheral,
         didUpdateNotificationStateFor characteristic: CBCharacteristic,
         error: Error?

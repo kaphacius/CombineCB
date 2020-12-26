@@ -1,7 +1,8 @@
 import Foundation
 import Combine
+import CoreBluetooth
 
-enum CCBError: Error {
+public enum CCBError: Error {
     case peripheralConnectionError(Error?)
     case peripheralDisconnectError(Error)
     case serviceDiscoveryError(Error)
@@ -14,40 +15,46 @@ enum CCBError: Error {
     case characteristicUpdateNotificationStateError(Error)
 }
 
-typealias IncludedServiceDiscovered = (
+public typealias IncludedServiceDiscovered = (
     peripheral: CCBPeripheral,
     service: CBService
 )
 
-typealias CharacteristicsDiscovered = (
+public typealias CharacteristicsDiscovered = (
     peripheral: CCBPeripheral,
     service: CBService
 )
 
-typealias DescriptorsDiscovered = (
+public typealias DescriptorsDiscovered = (
     peripheral: CCBPeripheral,
     characteristic: CBCharacteristic
 )
 
-typealias CharacteristicValueChanged = (
+public typealias CharacteristicValueChanged = (
     peripheral: CCBPeripheral,
     characteristic: CBCharacteristic
 )
 
-typealias CCBStream<T> = PassthroughSubject<T, CCBError>
-typealias CCBPeripheralStream = CCBStream<CCBPeripheral>
-typealias CCBDiscoverIncludedServicesStream = CCBStream<IncludedServiceDiscovered>
-typealias CCBDiscoverCharacteristicsStream = CCBStream<CharacteristicsDiscovered>
-typealias CCBDiscoverDescriptorsStream = CCBStream<DescriptorsDiscovered>
-typealias CCBCharacteristicChangeValueStream = CCBStream<CharacteristicValueChanged>
-typealias CCBPublisher<T> = AnyPublisher<T, CCBError>
-typealias CCBPeripheralPublisher = CCBPublisher<CCBPeripheral>
-typealias CCBServicePublisher = CCBPublisher<CBService>
-typealias CCBDiscoverIncludedServicesPublisher = CCBPublisher<IncludedServiceDiscovered>
-typealias CCBDiscoverCharacteristicsPublisher = CCBPublisher<CharacteristicsDiscovered>
-typealias CCBDiscoverDescriptorsPublisher = CCBPublisher<DescriptorsDiscovered>
-typealias CCBCharacteristicChangeValuePublisher = CCBPublisher<CharacteristicValueChanged>
-typealias CBOptions = [String: Any]
+public typealias PeripheralDiscovered = (
+    peripheral: CCBPeripheral,
+    advertisementData: [String: Any],
+    rssi: NSNumber
+)
+
+public typealias CCBStream<T> = PassthroughSubject<T, CCBError>
+public typealias CCBPeripheralStream = CCBStream<CCBPeripheral>
+public typealias CCBDiscoverIncludedServicesStream = CCBStream<IncludedServiceDiscovered>
+public typealias CCBDiscoverCharacteristicsStream = CCBStream<CharacteristicsDiscovered>
+public typealias CCBDiscoverDescriptorsStream = CCBStream<DescriptorsDiscovered>
+public typealias CCBCharacteristicChangeValueStream = CCBStream<CharacteristicValueChanged>
+public typealias CCBPublisher<T> = AnyPublisher<T, CCBError>
+public typealias CCBPeripheralPublisher = CCBPublisher<CCBPeripheral>
+public typealias CCBServicePublisher = CCBPublisher<CBService>
+public typealias CCBDiscoverIncludedServicesPublisher = CCBPublisher<IncludedServiceDiscovered>
+public typealias CCBDiscoverCharacteristicsPublisher = CCBPublisher<CharacteristicsDiscovered>
+public typealias CCBDiscoverDescriptorsPublisher = CCBPublisher<DescriptorsDiscovered>
+public typealias CCBCharacteristicChangeValuePublisher = CCBPublisher<CharacteristicValueChanged>
+public typealias CBOptions = [String: Any]
 
 extension Data {
     func chunks(of size: Int) -> [Data] {

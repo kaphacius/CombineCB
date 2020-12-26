@@ -11,19 +11,8 @@ let package = Package(
             name: "CombineCB",
             targets: ["CombineCB"]),
     ],
-    dependencies: [
-        .package(name: "CoreBluetoothMock",
-                 url: "https://github.com/kaphacius/IOS-CoreBluetooth-Mock.git",
-                 .branch("master"))
-    ],
     targets: [
         .target(
-            name: "CombineCB",
-            dependencies: ["CoreBluetoothMock"]),
-        .testTarget(
-            name: "CombineCBTests",
-            dependencies: ["CombineCB", "CoreBluetoothMock"],
-            swiftSettings: [.define("TESTS")]
-            ),
+            name: "CombineCB"),
     ]
 )

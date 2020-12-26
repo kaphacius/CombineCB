@@ -1,36 +1,25 @@
-#if TEST
-    import CoreBluetoothMock
-#else
-    import CoreBluetooth
-#endif
-
+import CoreBluetooth
 import Foundation
 import Combine
 
-typealias PeripheralDiscovered = (
-    peripheral: CCBPeripheral,
-    advertisementData: [String: Any],
-    rssi: NSNumber
-)
-
-class CCBCentralManager: NSObject {
+public final class CCBCentralManager: NSObject {
     private let manager: CBCentralManager
     private let stateStream = CurrentValueSubject<CBManagerState, CCBError>(.unknown)
     private let discoverStream = CCBStream<PeripheralDiscovered>()
     private var connectStreams: Dictionary<UUID, CCBPeripheralStream> = [:]
 
-    internal init(manager: CBCentralManager) {
+    init(manager: CBCentralManager) {
         self.manager = manager
         super.init()
 
         manager.delegate = self
     }
 
-    internal func subscribeToStateChanges() -> CCBPublisher<CBManagerState> {
+    public func subscribeToStateChanges() -> CCBPublisher<CBManagerState> {
         stateStream.eraseToAnyPublisher()
     }
 
-    internal func scanForPeripherals(
+    public func scanForPeripherals(
         withServices services: [CBUUID]? = nil,
         options: [String: Any]? = nil
     ) -> CCBPublisher<PeripheralDiscovered> {
@@ -38,7 +27,7 @@ class CCBCentralManager: NSObject {
         return discoverStream.eraseToAnyPublisher()
     }
 
-    internal func connect(
+    public func connect(
         _ peripheral: CCBPeripheral,
         options: CBOptions? = nil) -> CCBPeripheralPublisher {
         let stream = connectStream(for: peripheral.id)
@@ -46,7 +35,7 @@ class CCBCentralManager: NSObject {
         return stream.eraseToAnyPublisher()
     }
 
-    internal func cancelPeripheralConnection(
+    public func cancelPeripheralConnection(
         _ peripheral: CBPeripheral
     ) -> CCBPeripheralPublisher {
         let stream = connectStream(for: peripheral.identifier)
@@ -54,7 +43,7 @@ class CCBCentralManager: NSObject {
         return stream.eraseToAnyPublisher()
     }
 
-    func onPeripheralDisconnect(with id: UUID) {
+    private func onPeripheralDisconnect(with id: UUID) {
         connectStreams.removeValue(forKey: id)
     }
 
@@ -70,13 +59,13 @@ class CCBCentralManager: NSObject {
 }
 
 extension CCBCentralManager: CBCentralManagerDelegate {
-    internal func centralManagerDidUpdateState(
+    public func centralManagerDidUpdateState(
         _ central: CBCentralManager
     ) {
         stateStream.send(central.state)
     }
 
-    func centralManager(
+    public func centralManager(
         _ central: CBCentralManager,
         didDiscover peripheral: CBPeripheral,
         advertisementData: [String : Any],
@@ -84,7 +73,7 @@ extension CCBCentralManager: CBCentralManagerDelegate {
         discoverStream.send((CCBPeripheral(peripheral: peripheral), advertisementData, RSSI))
     }
 
-    func centralManager(
+    public func centralManager(
         _ central: CBCentralManager,
         didConnect peripheral: CBPeripheral
     ) {
@@ -94,7 +83,7 @@ extension CCBCentralManager: CBCentralManagerDelegate {
             }
     }
 
-    func centralManager(
+    public func centralManager(
         _ central: CBCentralManager,
         didFailToConnect peripheral: CBPeripheral,
         error: Error?
@@ -106,7 +95,7 @@ extension CCBCentralManager: CBCentralManagerDelegate {
         onPeripheralDisconnect(with: peripheral.identifier)
     }
 
-    func centralManager(
+    public func centralManager(
         _ central: CBCentralManager,
         didDisconnectPeripheral peripheral: CBPeripheral,
         error: Error?
