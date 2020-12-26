@@ -1,4 +1,8 @@
-import CoreBluetooth
+#if CCB_TESTS
+    import CoreBluetoothMock
+#else
+    import CoreBluetooth
+#endif
 import Foundation
 import Combine
 
@@ -16,7 +20,7 @@ final public class CCBPeripheral: NSObject {
     var id: UUID { peripheral.identifier }
     var services: [CBService] { peripheral.services ?? [] }
 
-    internal init(peripheral: CBPeripheral) {
+    public init(peripheral: CBPeripheral) {
         self.peripheral = peripheral
         super.init()
 

@@ -1,4 +1,8 @@
-import CoreBluetooth
+#if CCB_TESTS
+    import CoreBluetoothMock
+#else
+    import CoreBluetooth
+#endif
 import Foundation
 import Combine
 
@@ -8,7 +12,7 @@ public final class CCBCentralManager: NSObject {
     private let discoverStream = CCBStream<PeripheralDiscovered>()
     private var connectStreams: Dictionary<UUID, CCBPeripheralStream> = [:]
 
-    init(manager: CBCentralManager) {
+    public init(manager: CBCentralManager) {
         self.manager = manager
         super.init()
 

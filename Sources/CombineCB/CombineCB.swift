@@ -1,6 +1,10 @@
 import Foundation
 import Combine
-import CoreBluetooth
+#if CCB_TESTS
+    import CoreBluetoothMock
+#else
+    import CoreBluetooth
+#endif
 
 public enum CCBError: Error {
     case peripheralConnectionError(Error?)
