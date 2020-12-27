@@ -1,7 +1,7 @@
 import XCTest
 import Combine
-@testable import CombineCB
 @testable import CoreBluetoothMock
+@testable import CombineCB
 
 final class CCBCentralManagerTests: CCBTestCase {
     func testStateChange() {
@@ -55,9 +55,7 @@ final class CCBCentralManagerTests: CCBTestCase {
                 receiveCompletion: { _ in },
                 receiveValue: { p in
                     XCTAssert(p.peripheral.p.identifier == id, "Discovered peripheral id is incorrect")
-                XCTAssert(p.rssi.doubleValue < -25.0, "Discovered peripheral proximity is incorrect")
-
-                discovered.fulfill()
+                    discovered.fulfill()
             }).store(in: &cancellables)
 
         waitForExpectations(timeout: 10.0)

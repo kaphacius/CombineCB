@@ -28,6 +28,8 @@
 * POSSIBILITY OF SUCH DAMAGE.
 */
 
+#if CCB_TESTS
+
 import CoreBluetoothMock
 
 // Copy this file to your project to start using CoreBluetoothMock classes
@@ -84,3 +86,5 @@ public let CBAdvertisementDataSolicitedServiceUUIDsKey        = CBMAdvertisement
 public let CBConnectPeripheralOptionNotifyOnConnectionKey     = CBMConnectPeripheralOptionNotifyOnConnectionKey
 public let CBConnectPeripheralOptionNotifyOnDisconnectionKey  = CBMConnectPeripheralOptionNotifyOnDisconnectionKey
 public let CBConnectPeripheralOptionNotifyOnNotificationKey   = CBMConnectPeripheralOptionNotifyOnNotificationKey
+
+#endif

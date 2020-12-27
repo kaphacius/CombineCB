@@ -19,11 +19,12 @@ let package = Package(
     targets: [
         .target(
             name: "CombineCB",
-            dependencies: ["CoreBluetoothMock"]),
+            dependencies: ["CoreBluetoothMock"],
+            swiftSettings: [.define("CCB_TESTS", .when(configuration: .debug))]
+        ),
         .testTarget(
             name: "CombineCBTests",
-            dependencies: ["CombineCB", "CoreBluetoothMock"],
-            swiftSettings: [.define("CCB_TESTS")]
+            dependencies: ["CombineCB", "CoreBluetoothMock"]
             ),
     ]
 )
