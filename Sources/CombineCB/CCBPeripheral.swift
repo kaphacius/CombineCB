@@ -16,9 +16,10 @@ final public class CCBPeripheral: NSObject {
     private var characteristicReadValueStreams: Dictionary<CBUUID, CCBCharacteristicChangeValueStream> = [:]
     private var characteristicNotifyValueStreams: Dictionary<CBUUID, CCBCharacteristicChangeValueStream> = [:]
 
-    var p: CBPeripheral { peripheral }
-    var id: UUID { peripheral.identifier }
-    var services: [CBService] { peripheral.services ?? [] }
+    public var p: CBPeripheral { peripheral }
+    public var id: UUID { peripheral.identifier }
+    public var name: String? { peripheral.name }
+    public var services: [CBService] { peripheral.services ?? [] }
 
     public init(peripheral: CBPeripheral) {
         self.peripheral = peripheral
