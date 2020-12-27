@@ -1,4 +1,4 @@
-#if CCB_TESTS
+#if targetEnvironment(simulator)
     import CoreBluetoothMock
 #else
     import CoreBluetooth

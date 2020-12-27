@@ -28,7 +28,7 @@
 * POSSIBILITY OF SUCH DAMAGE.
 */
 
-#if CCB_TESTS
+#if targetEnvironment(simulator)
 
 import CoreBluetoothMock
 
